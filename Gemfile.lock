@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/Hyper-Unearthing/llm_gateway
-  revision: c7a0a2a605927cb6ea6c032c14a11ef8dd6b0a8c
+  revision: 75a57d4d7c4b774bd73420192ca2d4f8fbfc6ea8
   branch: feat/add-claude-code-support
   specs:
     llm_gateway (0.3.0)
@@ -8,6 +8,7 @@ GIT
 GEM
   remote: https://rubygems.org/
   specs:
+    base64 (0.3.0)
     date (3.5.1)
     debug (1.11.1)
       irb (~> 1.10)
@@ -38,6 +39,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  base64
   debug
   llm_gateway!
 
