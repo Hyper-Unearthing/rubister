@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 
 require 'llm_gateway'
-require 'tty-prompt'
 require 'optparse'
 require 'json'
 require 'time'
