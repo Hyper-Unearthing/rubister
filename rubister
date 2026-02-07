@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+# Wrapper script for standalone bundle execution
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Run ruby with the standalone bundle setup
+exec ruby -I"$DIR/bundle/bundler" -rsetup "$DIR/run_agent.rb" "$@"
