@@ -1,13 +1,12 @@
 #!/usr/bin/env ruby
 
-# Setup bundler inline so it works with or without 'bundle exec'
-require 'bundler/setup'
-Bundler.require(:default)
-
+require 'llm_gateway'
+require 'tty-prompt'
 require 'optparse'
 require 'json'
 require 'time'
-require_relative 'claude_code_clone'
+require_relative 'agent'
+require_relative 'prompt'
 
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
