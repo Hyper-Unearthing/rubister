@@ -16,7 +16,6 @@ class Agent
       result = prompt.post
       process_response(result[:choices][0][:content], &block)
     rescue StandardError => e
-      debugger
       yield({ type: 'error', message: e.message }) if block_given?
       raise e
     end
