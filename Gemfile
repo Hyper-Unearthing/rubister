@@ -1,7 +1,7 @@
 source 'https://rubygems.org'
 
 gem 'base64'
-gem 'llm_gateway', git: 'https://github.com/Hyper-Unearthing/llm_gateway', branch: 'feat/add-claude-code-support'
+gem 'llm_gateway', path: '../llm_gateway'
 
 group :development do
   gem 'debug'
