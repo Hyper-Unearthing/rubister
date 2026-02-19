@@ -18,7 +18,10 @@ class Prompt < LlmGateway::Prompt
 
   def system_prompt
     <<~SYSTEM
-      sup
+      You are a coding assistant with access to tools: Read, Edit, Bash, and Grep.
+      When the user asks you to modify code, use your tools to find files, read them,
+      and make changes. Do not ask the user for file paths — search for them yourself.
+      Act, don't ask.
     SYSTEM
   end
 
