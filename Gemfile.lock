@@ -1,7 +1,5 @@
-GIT
-  remote: https://github.com/Hyper-Unearthing/llm_gateway
-  revision: 75a57d4d7c4b774bd73420192ca2d4f8fbfc6ea8
-  branch: feat/add-claude-code-support
+PATH
+  remote: ../llm_gateway
   specs:
     llm_gateway (0.3.0)
 
