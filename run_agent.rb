@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 
 require 'optparse'
+require 'securerandom'
+require 'llm_gateway'
 require_relative 'agent'
 require_relative 'prompt'
 require_relative 'credentials'
@@ -43,10 +45,26 @@ class AgentRunner
       @agent.run(@options[:message]) do |message|
         puts message
       end
+      write_transcript
     else
       # Interactive mode
       run_interactive
     end
+  end
+
+  def transcript_path
+    unless @transcript_file
+      timestamp = Time.now.strftime('%Y%m%d_%H%M%S')
+      session_id = SecureRandom.uuid
+      dir = File.join(File.dirname(__FILE__), 'sessions')
+      Dir.mkdir(dir) unless Dir.exist?(dir)
+      @transcript_file = File.join(dir, "#{timestamp}_#{session_id}.json")
+    end
+    @transcript_file
+  end
+
+  def write_transcript
+    File.write(transcript_path, JSON.pretty_generate(@agent.transcript))
   end
 
   def run_interactive
@@ -85,6 +103,7 @@ class AgentRunner
       @agent.run(message) do |output|
         puts output
       end
+      write_transcript
 
       # Print newline after agent output completes
       puts

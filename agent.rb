@@ -10,6 +10,8 @@ class Agent
     @transcript = []
   end
 
+  attr_reader :transcript
+
   def run(user_input, &block)
     @transcript << { role: 'user', content: [{ type: 'text', text: user_input }] }
 
@@ -57,8 +59,6 @@ class Agent
       @transcript << { role: 'user', content: tool_results }
       send_and_process(&block)
     end
-
-    File.write('transcript.json', JSON.pretty_generate(@transcript))
 
     response
   end
