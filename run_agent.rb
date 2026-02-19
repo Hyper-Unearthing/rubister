@@ -4,6 +4,7 @@ require 'llm_gateway'
 require 'optparse'
 require 'json'
 require 'time'
+require 'fileutils'
 require_relative 'agent'
 require_relative 'prompt'
 
@@ -12,7 +13,7 @@ $stdout.sync = true
 
 # Simple runner that takes auth and message arguments
 class AgentRunner
-  AUTH_FILE_PATH = File.expand_path('~/.local/share/opencode/auth.json')
+  AUTH_FILE_PATH = File.join(__dir__, 'auth.json')
 
   def initialize
     @options = {
@@ -98,8 +99,10 @@ class AgentRunner
   def load_credentials
     if @options[:auth]
       parse_auth_string(@options[:auth])
-    else
+    elsif File.exist?(AUTH_FILE_PATH)
       load_from_auth_file
+    else
+      run_oauth_flow
     end
   end
 
@@ -127,11 +130,6 @@ class AgentRunner
   end
 
   def load_from_auth_file
-    unless File.exist?(AUTH_FILE_PATH)
-      puts "Error: Auth file not found at #{AUTH_FILE_PATH} and no --auth argument provided"
-      exit 1
-    end
-
     auth_data = JSON.parse(File.read(AUTH_FILE_PATH))
     anthropic_data = auth_data['anthropic']
 
@@ -151,6 +149,46 @@ class AgentRunner
   rescue Errno::ENOENT => e
     puts "Error: Could not read auth file: #{e.message}"
     exit 1
+  end
+
+  def run_oauth_flow
+    flow = LlmGateway::Clients::ClaudeCode::OAuthFlow.new
+
+    result = flow.start
+    puts "Open this URL to authorize:"
+    puts result[:authorization_url]
+    puts
+    print "Paste the code (format: code#state): "
+
+    tty = File.open('/dev/tty', 'r')
+    auth_code = tty.gets&.strip
+    tty.close
+
+    if auth_code.nil? || auth_code.empty?
+      puts "Error: No authorization code provided"
+      exit 1
+    end
+
+    tokens = flow.exchange_code(auth_code, result[:code_verifier])
+    save_auth_file(tokens)
+
+    puts "Authenticated successfully!"
+    puts
+
+    [tokens[:access_token], tokens[:refresh_token], tokens[:expires_at]]
+  end
+
+  def save_auth_file(tokens)
+    auth_data = {
+      'anthropic' => {
+        'access' => tokens[:access_token],
+        'refresh' => tokens[:refresh_token],
+        'expires' => tokens[:expires_at]&.to_i
+      }
+    }
+
+    FileUtils.mkdir_p(File.dirname(AUTH_FILE_PATH))
+    File.write(AUTH_FILE_PATH, JSON.pretty_generate(auth_data))
   end
 end
 
