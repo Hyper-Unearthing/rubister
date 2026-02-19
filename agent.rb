@@ -1,12 +1,10 @@
 require 'json'
 
 class Agent
-  def initialize(prompt_class, model, api_key, refresh_token: nil, expires_at: nil)
+  def initialize(prompt_class, model, client)
     @prompt_class = prompt_class
     @model = model
-    @api_key = api_key
-    @refresh_token = refresh_token
-    @expires_at = expires_at
+    @client = client
     @transcript = []
   end
 
@@ -26,7 +24,7 @@ class Agent
   private
 
   def send_and_process(&block)
-    prompt = @prompt_class.new(@model, @transcript, @api_key, refresh_token: @refresh_token, expires_at: @expires_at)
+    prompt = @prompt_class.new(@model, @transcript, @client)
     result = prompt.post do |event|
       case event[:type]
       when :text_delta, :thinking_delta

@@ -4,18 +4,16 @@ require_relative 'tools/bash_tool'
 require_relative 'tools/grep_tool'
 
 class Prompt < LlmGateway::Prompt
-  def initialize(model, transcript, api_key, refresh_token: nil, expires_at: nil)
+  def initialize(model, transcript, client)
     super(model)
     @transcript = transcript
-    @api_key = api_key
-    @refresh_token = refresh_token
-    @expires_at = expires_at
+    @client = client
   end
 
   def prompt
     cloned_history = Marshal.load(Marshal.dump(@transcript))
-    if (last_content = cloned_history.last&.dig('content')) && last_content.is_a?(Array) && last_content.last
-      last_content.last['cache_control'] = { 'type': 'ephemeral' }
+    if (last_content = cloned_history.last&.dig(:content)) && last_content.is_a?(Array) && last_content.last
+      last_content.last[:cache_control] = { type: 'ephemeral' }
     end
     cloned_history.map { |h| deep_symbolize_keys(h) }
   end
@@ -39,14 +37,10 @@ class Prompt < LlmGateway::Prompt
   end
 
   def post(&block)
-    LlmGateway::Client.chat(
-      model,
+    @client.chat(
       prompt,
       tools: tools,
       system: system_prompt,
-      api_key: @api_key,
-      refresh_token: @refresh_token,
-      expires_at: @expires_at,
       &block
     )
   end
