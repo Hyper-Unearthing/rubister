@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
 
-require 'bundler/setup'
 require 'optparse'
 require 'securerandom'
 require 'llm_gateway'
