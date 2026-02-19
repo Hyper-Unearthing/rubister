@@ -64,7 +64,11 @@ class AgentRunner
   end
 
   def write_transcript
-    File.write(transcript_path, JSON.pretty_generate(@agent.transcript))
+    transcript_data = {
+      model: @agent.model,
+      messages: @agent.transcript
+    }
+    File.write(transcript_path, JSON.pretty_generate(transcript_data))
   end
 
   def run_interactive

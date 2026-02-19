@@ -10,11 +10,10 @@ class Agent
     @transcript = []
   end
 
-  attr_reader :transcript
+  attr_reader :transcript, :model
 
   def run(user_input, &block)
     @transcript << { role: 'user', content: [{ type: 'text', text: user_input }] }
-
     begin
       send_and_process(&block)
       yield({ type: :done }) if block_given?
@@ -36,7 +35,9 @@ class Agent
     end
 
     response = result[:choices][0][:content]
-    @transcript << { role: 'assistant', content: response }
+    usage = result[:usage]
+
+    @transcript << { role: 'assistant', content: response, usage: usage }
 
     # Collect all tool uses
     tool_uses = response.select { |message| message[:type] == 'tool_use' }
