@@ -1,3 +1,5 @@
+require 'json'
+
 class Agent
   def initialize(prompt_class, model, api_key, refresh_token: nil, expires_at: nil)
     @prompt_class = prompt_class
@@ -55,6 +57,8 @@ class Agent
       @transcript << { role: 'user', content: tool_results }
       send_and_process(&block)
     end
+
+    File.write('transcript.json', JSON.pretty_generate(@transcript))
 
     response
   end
