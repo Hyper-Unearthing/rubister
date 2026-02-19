@@ -31,7 +31,7 @@ class Prompt < LlmGateway::Prompt
     self.class.tools.map(&:definition)
   end
 
-  def post
+  def post(&block)
     LlmGateway::Client.chat(
       model,
       prompt,
@@ -39,7 +39,8 @@ class Prompt < LlmGateway::Prompt
       system: system_prompt,
       api_key: @api_key,
       refresh_token: @refresh_token,
-      expires_at: @expires_at
+      expires_at: @expires_at,
+      &block
     )
   end
 end
