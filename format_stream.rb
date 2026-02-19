@@ -28,23 +28,39 @@ loop do
       hash = eval(line)
       type = hash[:type]
 
-      case type
-      when :text_delta
+      type_s = type.to_s
+
+      case type_s
+      when "text_delta"
         in_delta = true
         print hash[:text]
-      when :thinking_delta
+      when "thinking_delta"
         in_delta = true
         print "#{COLORS[:dim]}#{hash[:thinking]}#{COLORS[:reset]}"
-      when :tool_use
+      when "tool_use"
         puts if in_delta
         in_delta = false
         puts
-        puts "#{COLORS[:cyan]}#{COLORS[:bold]}[#{hash[:name]}]#{COLORS[:reset]} #{JSON.generate(hash[:input])}"
-      when :done
+        puts "  #{COLORS[:cyan]}#{COLORS[:bold]}#{hash[:name]}#{COLORS[:reset]}"
+        hash[:input].each do |key, value|
+          puts "  #{COLORS[:dim]}#{key}: #{value}#{COLORS[:reset]}"
+        end
+        puts "  #{COLORS[:dim]}id: #{hash[:id]}#{COLORS[:reset]}"
+      when "tool_result"
+        puts if in_delta
+        in_delta = false
+        id_part = hash[:tool_use_id] ? " (#{hash[:tool_use_id]})" : ""
+        content = hash[:content].to_s
+        puts
+        puts "  #{COLORS[:green]}#{COLORS[:bold]}Result#{id_part}#{COLORS[:reset]}"
+        content.each_line do |l|
+          puts "  #{l.chomp}"
+        end
+      when "done"
         puts if in_delta
         in_delta = false
         puts
-      when :error
+      when "error"
         puts if in_delta
         in_delta = false
         puts "#{COLORS[:red]}[error] #{hash[:message]}#{COLORS[:reset]}"
