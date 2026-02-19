@@ -19,12 +19,7 @@ class Prompt < LlmGateway::Prompt
   end
 
   def system_prompt
-    content = <<~SYSTEM
-      You are a coding assistant with access to tools: Read, Edit, Bash, and Grep.
-      When the user asks you to modify code, use your tools to find files, read them,
-      and make changes. Do not ask the user for file paths — search for them yourself.
-      Act, don't ask.
-    SYSTEM
+    content = File.read(File.join(__dir__, 'system_prompt.md'))
     [{ role: 'system', content: content, cache_control: { 'type': 'ephemeral' } }]
   end
 
