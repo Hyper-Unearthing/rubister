@@ -6,6 +6,7 @@ require 'llm_gateway'
 require_relative 'agent'
 require_relative 'prompt'
 require_relative 'credentials'
+require_relative 'lib/openai_oauth'
 
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
@@ -14,7 +15,8 @@ $stdout.sync = true
 class AgentRunner
   def initialize
     @options = {
-      model: 'claude_code/claude-sonnet-4-5',
+      model: nil,
+      provider: nil,
       message: nil,
       auth: nil
     }
@@ -28,6 +30,14 @@ class AgentRunner
         @options[:message] = m
       end
 
+      opts.on('-p PROVIDER', '--provider PROVIDER', 'Provider: anthropic (default) or openai') do |p|
+        @options[:provider] = p
+      end
+
+      opts.on('--model MODEL', 'Model name') do |model|
+        @options[:model] = model
+      end
+
       opts.on('-h', '--help', 'Prints this help') do
         puts opts
         exit
@@ -37,16 +47,33 @@ class AgentRunner
 
   def run
     parse_args
-    api_key, refresh_token, expires_at = Credentials.load(@options[:auth])
-    client = LlmGateway.build(
-      provider: 'anthropic',
-      type: 'oauth',
-      model: @options[:model],
-      accessToken: api_key,
-      refreshToken: refresh_token,
-      expiresAt: expires_at
-    )
-    @agent = Agent.new(Prompt, @options[:model], client)
+    credentials = Credentials.load(@options[:provider], @options[:auth])
+
+    # Credentials returns [access, refresh, expires, provider, ...extra]
+    api_key, refresh_token, expires_at, provider = credentials[0..3]
+
+    client = if provider == 'openai'
+      account_id = credentials[4]
+      model = @options[:model] || 'gpt-5.1-codex-mini'
+      LlmGateway.build_provider(
+        provider: 'openai_oauth_responses',
+        model_key: model,
+        access_token: api_key,
+        refresh_token: refresh_token,
+        expires_at: expires_at,
+        account_id: account_id
+      )
+    else
+      model = @options[:model] || 'claude_code/claude-sonnet-4-5'
+      LlmGateway.build_provider(
+        provider: 'anthropic_oauth_messages',
+        model_key: model,
+        access_token: api_key,
+        refresh_token: refresh_token,
+        expires_at: expires_at
+      )
+    end
+    @agent = Agent.new(Prompt, model, client)
 
     if @options[:message]
       # Single message mode
