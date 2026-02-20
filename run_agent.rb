@@ -2,10 +2,10 @@
 
 require 'optparse'
 require 'securerandom'
+require 'json'
 require 'llm_gateway'
 require_relative 'agent'
 require_relative 'prompt'
-require_relative 'credentials'
 require_relative 'lib/openai_oauth'
 
 # Enable immediate output flushing for real-time streaming
@@ -13,12 +13,13 @@ $stdout.sync = true
 
 # Simple runner that takes auth and message arguments
 class AgentRunner
+  PROVIDERS_FILE = File.join(__dir__, 'providers.json')
+
   def initialize
     @options = {
       model: nil,
       provider: nil,
-      message: nil,
-      auth: nil
+      message: nil
     }
   end
 
@@ -30,7 +31,7 @@ class AgentRunner
         @options[:message] = m
       end
 
-      opts.on('-p PROVIDER', '--provider PROVIDER', 'Provider: anthropic (default) or openai') do |p|
+      opts.on('-p PROVIDER', '--provider PROVIDER', 'Provider key from providers.json (default: first entry)') do |p|
         @options[:provider] = p
       end
 
@@ -47,32 +48,27 @@ class AgentRunner
 
   def run
     parse_args
-    credentials = Credentials.load(@options[:provider], @options[:auth])
 
-    # Credentials returns [access, refresh, expires, provider, ...extra]
-    api_key, refresh_token, expires_at, provider = credentials[0..3]
-
-    client = if provider == 'openai'
-      account_id = credentials[4]
-      model = @options[:model] || 'gpt-5.1-codex-mini'
-      LlmGateway.build_provider(
-        provider: 'openai_oauth_responses',
-        model_key: model,
-        access_token: api_key,
-        refresh_token: refresh_token,
-        expires_at: expires_at,
-        account_id: account_id
-      )
-    else
-      model = @options[:model] || 'claude_code/claude-sonnet-4-5'
-      LlmGateway.build_provider(
-        provider: 'anthropic_oauth_messages',
-        model_key: model,
-        access_token: api_key,
-        refresh_token: refresh_token,
-        expires_at: expires_at
-      )
+    unless File.exist?(PROVIDERS_FILE)
+      puts "No providers.json found. Run 'ruby setup_provider.rb <provider>' first."
+      exit 1
     end
+
+    providers = JSON.parse(File.read(PROVIDERS_FILE))
+    name = @options[:provider] || providers.keys.first
+    provider_config = providers[name]
+
+    unless provider_config
+      puts "Provider '#{name}' not found in providers.json"
+      puts "Available: #{providers.keys.join(', ')}"
+      exit 1
+    end
+
+    config = provider_config.merge('provider' => name)
+    config['model_key'] = @options[:model] if @options[:model]
+    model = config['model_key']
+
+    client = LlmGateway.build_provider(config)
     @agent = Agent.new(Prompt, model, client)
 
     if @options[:message]
