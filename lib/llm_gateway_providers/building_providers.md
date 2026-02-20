@@ -171,24 +171,104 @@ Then decide on mappers:
 - **Custom stream format** → write your own `StreamOutputMapper`
 - **Custom request format** → override `chat()` in the client
 
-## Entry Point Convention
+## Provider Registration
 
-Provide a module-level `build` method that assembles the adapter:
+Providers are registered with `LlmGateway::ProviderRegistry` so they can be built generically via `LlmGateway.build_provider`. Registration maps a provider name to its **Client** class and **Adapter** class:
 
 ```ruby
-module MyProvider
-  def self.build(access_token:, model: "default-model")
-    client = Client.new(model_key: model, access_token: access_token)
-    Adapter.new(client)
-  end
-end
+LlmGateway::ProviderRegistry.register("my_provider_responses",
+  client: MyProvider::Client,
+  adapter: MyProvider::Adapter)
 ```
 
-This lets the agent runner construct the provider without knowing its internals:
+This is typically done at the top level of the entry-point file (e.g. `lib/my_provider.rb`), right after requiring the provider's classes.
+
+**Example** (OpenAI OAuth provider):
 
 ```ruby
-client = MyProvider.build(access_token: token, model: model)
+# lib/openai_oauth.rb
+require_relative "llm_gateway_providers/openai_oauth/client"
+require_relative "llm_gateway_providers/openai_oauth/adapter"
+# ... other requires ...
+
+module OpenAiOAuth
+  def self.login
+    flow = OAuthFlow.new
+    flow.login
+  end
+end
+
+LlmGateway::ProviderRegistry.register("openai_oauth_responses",
+  client: OpenAiOAuth::Client,
+  adapter: OpenAiOAuth::Adapter)
+```
+
+Built-in providers in `llm_gateway` are registered the same way:
+
+```ruby
+LlmGateway::ProviderRegistry.register("anthropic_apikey_messages",
+  client: Clients::Claude,
+  adapter: Adapters::Claude::MessagesAdapter)
+
+LlmGateway::ProviderRegistry.register("openai_apikey_responses",
+  client: Clients::OpenAi,
+  adapter: Adapters::OpenAi::ResponsesAdapter)
+```
+
+## Provider Initialization
+
+Providers are initialized via `LlmGateway.build_provider(config)`. The config is a hash that **must** include a `"provider"` key matching the registered name. All other keys are passed as keyword arguments to the Client constructor:
+
+```ruby
+config = {
+  "provider" => "openai_oauth_responses",
+  "model_key" => "gpt-5.1-codex-mini",
+  "access_token" => "eyJ...",
+  "refresh_token" => "rt_...",
+  "expires_at" => 1772434168,
+  "account_id" => "6f6473c8-..."
+}
+
+client = LlmGateway.build_provider(config)
 agent = Agent.new(Prompt, model, client)
+```
+
+Under the hood, `build_provider` does:
+
+1. Extracts the `provider` key from the config
+2. Resolves the registered Client and Adapter classes via `ProviderRegistry.resolve`
+3. Instantiates the Client with the remaining config as keyword arguments: `entry[:client].new(**config)`
+4. Wraps it in the Adapter: `entry[:adapter].new(client)`
+
+This means your **Client's `initialize` must accept keyword arguments matching the config keys** from your `providers.json` (e.g. `model_key:`, `access_token:`, `refresh_token:`, etc.).
+
+### Configuration via `providers.json`
+
+In practice, provider configs are stored in a `providers.json` file. Each top-level key is the registered provider name, and its value contains the constructor arguments:
+
+```json
+{
+  "openai_oauth_responses": {
+    "model_key": "gpt-5.1-codex-mini",
+    "access_token": "eyJ...",
+    "refresh_token": "rt_...",
+    "expires_at": 1772434168,
+    "account_id": "6f6473c8-..."
+  },
+  "anthropic_oauth_messages": {
+    "model_key": "claude_code/claude-sonnet-4-5",
+    "access_token": "sk-ant-...",
+    "refresh_token": "sk-ant-ort01-...",
+    "expires_at": 1771598923
+  }
+}
+```
+
+The agent runner merges the provider name into the config and passes it to `build_provider`:
+
+```ruby
+config = provider_config.merge("provider" => name)
+client = LlmGateway.build_provider(config)
 ```
 
 ## File Structure Convention
@@ -204,4 +284,4 @@ lib/llm_gateway_providers/<provider_name>/
 └── oauth_flow.rb          # OAuth login (if needed)
 ```
 
-With an entry point at `lib/<provider_name>.rb` that requires the individual files and exposes the `build` method.
+With an entry point at `lib/<provider_name>.rb` that requires the individual files and registers the provider with `LlmGateway::ProviderRegistry`.
