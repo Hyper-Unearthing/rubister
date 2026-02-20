@@ -2,4 +2,4 @@ sessions
 .bundle
 bundle
 /*.tar.gz
-auth.json
+providers.json

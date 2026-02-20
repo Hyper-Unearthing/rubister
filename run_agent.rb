@@ -2,21 +2,24 @@
 
 require 'optparse'
 require 'securerandom'
+require 'json'
 require 'llm_gateway'
 require_relative 'agent'
 require_relative 'prompt'
-require_relative 'credentials'
+require_relative 'lib/openai_oauth'
 
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
 
 # Simple runner that takes auth and message arguments
 class AgentRunner
+  PROVIDERS_FILE = File.join(__dir__, 'providers.json')
+
   def initialize
     @options = {
-      model: 'claude_code/claude-sonnet-4-5',
-      message: nil,
-      auth: nil
+      model: nil,
+      provider: nil,
+      message: nil
     }
   end
 
@@ -28,6 +31,14 @@ class AgentRunner
         @options[:message] = m
       end
 
+      opts.on('-p PROVIDER', '--provider PROVIDER', 'Provider key from providers.json (default: first entry)') do |p|
+        @options[:provider] = p
+      end
+
+      opts.on('--model MODEL', 'Model name') do |model|
+        @options[:model] = model
+      end
+
       opts.on('-h', '--help', 'Prints this help') do
         puts opts
         exit
@@ -37,16 +48,28 @@ class AgentRunner
 
   def run
     parse_args
-    api_key, refresh_token, expires_at = Credentials.load(@options[:auth])
-    client = LlmGateway.build(
-      provider: 'anthropic',
-      type: 'oauth',
-      model: @options[:model],
-      accessToken: api_key,
-      refreshToken: refresh_token,
-      expiresAt: expires_at
-    )
-    @agent = Agent.new(Prompt, @options[:model], client)
+
+    unless File.exist?(PROVIDERS_FILE)
+      puts "No providers.json found. Run 'ruby setup_provider.rb <provider>' first."
+      exit 1
+    end
+
+    providers = JSON.parse(File.read(PROVIDERS_FILE))
+    name = @options[:provider] || providers.keys.first
+    provider_config = providers[name]
+
+    unless provider_config
+      puts "Provider '#{name}' not found in providers.json"
+      puts "Available: #{providers.keys.join(', ')}"
+      exit 1
+    end
+
+    config = provider_config.merge('provider' => name)
+    config['model_key'] = @options[:model] if @options[:model]
+    model = config['model_key']
+
+    client = LlmGateway.build_provider(config)
+    @agent = Agent.new(Prompt, model, client)
 
     if @options[:message]
       # Single message mode
