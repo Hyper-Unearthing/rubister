@@ -38,7 +38,15 @@ class AgentRunner
   def run
     parse_args
     api_key, refresh_token, expires_at = Credentials.load(@options[:auth])
-    @agent = Agent.new(Prompt, @options[:model], api_key, refresh_token: refresh_token, expires_at: expires_at)
+    client = LlmGateway.build(
+      provider: 'anthropic',
+      type: 'oauth',
+      model: @options[:model],
+      accessToken: api_key,
+      refreshToken: refresh_token,
+      expiresAt: expires_at
+    )
+    @agent = Agent.new(Prompt, @options[:model], client)
 
     if @options[:message]
       # Single message mode
@@ -64,7 +72,11 @@ class AgentRunner
   end
 
   def write_transcript
-    File.write(transcript_path, JSON.pretty_generate(@agent.transcript))
+    transcript_data = {
+      model: @agent.model,
+      messages: @agent.transcript
+    }
+    File.write(transcript_path, JSON.pretty_generate(transcript_data))
   end
 
   def run_interactive

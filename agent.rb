@@ -1,20 +1,17 @@
 require 'json'
 
 class Agent
-  def initialize(prompt_class, model, api_key, refresh_token: nil, expires_at: nil)
+  def initialize(prompt_class, model, client)
     @prompt_class = prompt_class
     @model = model
-    @api_key = api_key
-    @refresh_token = refresh_token
-    @expires_at = expires_at
+    @client = client
     @transcript = []
   end
 
-  attr_reader :transcript
+  attr_reader :transcript, :model
 
   def run(user_input, &block)
     @transcript << { role: 'user', content: [{ type: 'text', text: user_input }] }
-
     begin
       send_and_process(&block)
       yield({ type: :done }) if block_given?
@@ -27,7 +24,7 @@ class Agent
   private
 
   def send_and_process(&block)
-    prompt = @prompt_class.new(@model, @transcript, @api_key, refresh_token: @refresh_token, expires_at: @expires_at)
+    prompt = @prompt_class.new(@model, @transcript, @client)
     result = prompt.post do |event|
       case event[:type]
       when :text_delta, :thinking_delta
@@ -36,7 +33,9 @@ class Agent
     end
 
     response = result[:choices][0][:content]
-    @transcript << { role: 'assistant', content: response }
+    usage = result[:usage]
+
+    @transcript << { role: 'assistant', content: response, usage: usage }
 
     # Collect all tool uses
     tool_uses = response.select { |message| message[:type] == 'tool_use' }
