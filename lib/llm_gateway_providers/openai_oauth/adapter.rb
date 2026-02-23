@@ -2,6 +2,7 @@
 
 require "llm_gateway"
 require_relative "stream_output_mapper"
+require_relative "input_mapper"
 
 module OpenAiOAuth
   # Pass-through output mapper for streaming — the StreamOutputMapper
@@ -19,7 +20,7 @@ module OpenAiOAuth
     def initialize(client)
       super(
         client,
-        input_mapper: LlmGateway::Adapters::OpenAi::Responses::InputMapper,
+        input_mapper: OpenAiOAuth::InputMapper,
         output_mapper: PassthroughOutputMapper,
         stream_output_mapper: StreamOutputMapper
       )
