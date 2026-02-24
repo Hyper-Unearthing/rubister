@@ -1,3 +1,5 @@
+require_relative 'compaction_prompt'
+
 class AgentSession
   attr_reader :agent, :session_manager
 
@@ -6,7 +8,7 @@ class AgentSession
     @session_manager = session_manager
 
     @agent.subscribe(@session_manager)
-    @agent.transcript = raw_transcript
+    @agent.transcript = compacted_transcript
   end
 
   def run(message)
@@ -15,5 +17,14 @@ class AgentSession
 
   def raw_transcript
     @session_manager.current_transcript || []
+  end
+
+  def compact
+    session_manager.compaction(@agent.client)
+    @agent.transcript = compacted_transcript
+  end
+
+  def compacted_transcript
+    @session_manager.assemble_transcript
   end
 end

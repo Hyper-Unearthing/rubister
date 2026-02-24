@@ -78,9 +78,16 @@ class AgentRunner
       exit 1
     end
 
-    config = provider_config.merge('provider' => name)
-    config['model_key'] = @options[:model] if @options[:model]
-    model = config['model_key']
+    model = @options[:model] || provider_config['model_key']
+
+    configured_entries = providers.map do |provider_name, config|
+      resolved_config = config.merge('provider' => provider_name)
+      resolved_config['model_key'] = @options[:model] if @options[:model] && provider_name == name
+      { name: provider_name, config: resolved_config }
+    end
+
+    LlmGateway.reset_configuration!
+    LlmGateway.configure(configured_entries)
 
     session_manager = begin
       if @options[:session_file]
@@ -92,7 +99,13 @@ class AgentRunner
       puts "Failed to load session '#{@options[:session_file]}': #{e.message}"
       exit 1
     end
-    client = LlmGateway.build_provider(config)
+    client = LlmGateway.configured_clients[name.to_sym]
+    unless client
+      puts "Configured client '#{name}' not found"
+      puts "Available configured clients: #{LlmGateway.configured_clients.keys.join(', ')}"
+      exit 1
+    end
+    puts client.chat("hey")
     @agent = Agent.new(Prompt, model, client)
     @agent.subscribe(formatter)
     agent_session = AgentSession.new @agent, session_manager

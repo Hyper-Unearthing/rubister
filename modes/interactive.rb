@@ -24,6 +24,7 @@ class InteractiveRunner
     end
 
     puts "Interactive mode (type 'exit' or 'quit' to end, Ctrl+D to send EOF)"
+    puts "Type 'compaction' to compact old conversation context."
     puts '---'
 
     replay_transcript
@@ -46,6 +47,11 @@ class InteractiveRunner
 
       message = input.strip
       next if message.empty?
+
+      if message.casecmp('compaction').zero?
+        @agent_session.compact
+        next
+      end
 
       @agent_session.run(message)
     end
