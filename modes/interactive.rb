@@ -1,8 +1,7 @@
 class InteractiveRunner
-  def initialize(agent, formatter, session_manager)
-    @agent = agent
+  def initialize(agent_session, formatter)
+    @agent_session = agent_session
     @formatter = formatter
-    @session_manager = session_manager
   end
 
   def run
@@ -48,7 +47,7 @@ class InteractiveRunner
       message = input.strip
       next if message.empty?
 
-      @agent.run(message)
+      @agent_session.run(message)
     end
 
     puts 'Goodbye!'
@@ -60,7 +59,7 @@ class InteractiveRunner
   private
 
   def replay_transcript
-    transcript = Array(@session_manager.current_transcript)
+    transcript = Array(@agent_session.raw_transcript)
     return if transcript.empty?
 
     transcript.each do |message|

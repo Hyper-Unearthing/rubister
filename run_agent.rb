@@ -12,7 +12,7 @@ require_relative 'lib/openai_oauth'
 require_relative 'lib/format_stream'
 require_relative 'modes/interactive'
 require_relative 'lib/sessions/file_session_manager'
-
+require_relative 'lib/agent_session'
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
 
@@ -92,17 +92,14 @@ class AgentRunner
       puts "Failed to load session '#{@options[:session_file]}': #{e.message}"
       exit 1
     end
-
     client = LlmGateway.build_provider(config)
     @agent = Agent.new(Prompt, model, client)
     @agent.subscribe(formatter)
-    @agent.subscribe(session_manager)
-    @agent.transcript = session_manager.current_transcript || []
+    agent_session = AgentSession.new @agent, session_manager
     if @options[:message]
-      # Single message mode
-      @agent.run(@options[:message])
+      agent_session.run(@options[:message])
     else
-      runner = InteractiveRunner.new(@agent, formatter, session_manager)
+      runner = InteractiveRunner.new(agent_session, formatter)
       runner.run
     end
   end
