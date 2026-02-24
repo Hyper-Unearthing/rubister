@@ -3,38 +3,26 @@ require_relative 'eventable'
 
 class Agent
   include Publishable
-  attr_reader :session_manager, :model
+  attr_reader :model
+  attr_accessor :transcript
 
-  def initialize(prompt_class, model, client, session_manager)
+  def initialize(prompt_class, model, client)
     @prompt_class = prompt_class
     @model = model
     @client = client
-    @session_manager = session_manager
-    session_manager.model = model
-  end
-
-  def transcript
-    @session_manager.transcript
+    @transcript = []
   end
 
   def run(user_input)
-    start_index = @session_manager.transcript.length
-    @session_manager.push({ role: 'user', content: [{ type: 'text', text: user_input }] })
-
-    begin
-      response = send_and_process()
-      publish(:done, response)
-    rescue StandardError => e
-      @session_manager.truncate(start_index)
-      publish(:error, e)
-      raise e
-    end
+    publish_user_message([{ type: 'text', text: user_input }])
+    response = send_and_process
+    publish(:done, response)
   end
 
   private
 
   def send_and_process
-    prompt = @prompt_class.new(@model, @session_manager.transcript, @client)
+    prompt = @prompt_class.new(@model, transcript, @client)
     result = prompt.post do |event|
       case event[:type]
       when :text_delta, :thinking_delta
@@ -44,8 +32,7 @@ class Agent
 
     response = result[:choices][0][:content]
     usage = result[:usage]
-    @session_manager.push({ role: 'assistant', content: response, usage: usage })
-
+    publish_assistant_message(response, usage)
     # Collect all tool uses
     tool_uses = response.select { |message| message[:type] == 'tool_use' }
 
@@ -63,11 +50,26 @@ class Agent
         publish(:tool_result, tool_result)
         tool_result
       end
-      @session_manager.push({ role: 'user', content: tool_results })
+      publish_user_message(tool_results)
       send_and_process
     end
 
     response
+  end
+
+  def publish_assistant_message(content, usage = nil)
+    assistant_message = { role: 'assistant', content: content }
+    assistant_message[:usage] = usage if usage
+    publish(:assistant_message, assistant_message)
+    transcript.push(assistant_message)
+    assistant_message
+  end
+
+  def publish_user_message(content)
+    user_message = { role: 'user', content: content }
+    publish(:user_message, user_message)
+    transcript.push(user_message)
+    user_message
   end
 
   def handle_tool_use(message)

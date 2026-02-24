@@ -15,10 +15,25 @@ class Formatter
   def initialize
     @in_delta = false
     @last_role = nil
+    @saw_stream_delta = false
   end
 
   def on_notify(event)
+    name = fetch(event, :name).to_s
     payload = fetch(event, :payload)
+
+    # Global debug events are noisy in the UI.
+    return if name == 'debug'
+    # In interactive mode, user input is already visible on the prompt line.
+    return if name == 'user_message'
+
+    if name == 'done'
+      puts if @in_delta
+      @in_delta = false
+      puts
+      return
+    end
+
     event = payload unless payload.nil?
 
     role = fetch(event, :role)
@@ -33,14 +48,26 @@ class Formatter
         puts if @last_role
         display_user_message(contents)
       else
+        # If we already streamed deltas for this assistant turn, skip replaying
+        # finalized text/thinking blocks (and tool_use blocks that are rendered
+        # via dedicated tool_use events).
+        if name == 'assistant_message' && @saw_stream_delta
+          contents = contents.reject do |content|
+            %w[text thinking tool_use].include?(fetch(content, :type).to_s)
+          end
+        end
+
         contents.each do |content|
           display_llm_activity(content)
         end
       end
 
       @last_role = role.to_s
+      @saw_stream_delta = false if name == 'assistant_message'
     else
       display_llm_activity(event)
+      type_s = fetch(event, :type).to_s
+      @saw_stream_delta = true if %w[text_delta thinking_delta].include?(type_s)
     end
   rescue StandardError => e
     puts if @in_delta
@@ -49,16 +76,12 @@ class Formatter
   end
 
   def display_user_message(contents)
-    first = contents.first
+    text_contents = Array(contents).select { |c| fetch(c, :type).to_s == 'text' }
+    first = text_contents.first
+    return if first.nil?
 
-    if fetch(first, :type).to_s == 'text'
-      puts "> #{fetch(first, :text)}"
-      contents.drop(1).each { |content| display_llm_activity(content) }
-    else
-      print '> '
-      puts
-      contents.each { |content| display_llm_activity(content) }
-    end
+    puts "> #{fetch(first, :text)}"
+    text_contents.drop(1).each { |content| puts fetch(content, :text) }
   end
 
   def display_llm_activity(hash)
@@ -73,6 +96,9 @@ class Formatter
     when 'thinking_delta'
       @in_delta = true
       print "#{COLORS[:dim]}#{fetch(hash, :thinking)}#{COLORS[:reset]}"
+    when 'thinking'
+      thinking = fetch(hash, :thinking).to_s
+      puts "#{COLORS[:dim]}#{thinking}#{COLORS[:reset]}" unless thinking.empty?
     when 'tool_use'
       puts if @in_delta
       @in_delta = false

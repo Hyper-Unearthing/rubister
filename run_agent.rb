@@ -94,9 +94,10 @@ class AgentRunner
     end
 
     client = LlmGateway.build_provider(config)
-    @agent = Agent.new(Prompt, model, client, session_manager)
+    @agent = Agent.new(Prompt, model, client)
     @agent.subscribe(formatter)
-
+    @agent.subscribe(session_manager)
+    @agent.transcript = session_manager.current_transcript || []
     if @options[:message]
       # Single message mode
       @agent.run(@options[:message])
