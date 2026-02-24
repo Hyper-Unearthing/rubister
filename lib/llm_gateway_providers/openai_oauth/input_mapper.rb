@@ -24,7 +24,9 @@ module OpenAiOAuth
 
         if role == "user" && tool_result_message?(content)
           # Responses API expects tool results as top-level input items.
-          content.each { |part| acc << mapper.map_content(part) }
+          # Also normalize nested tool_result output blocks to Responses input types
+          # (e.g. text -> input_text, image -> input_image).
+          content.each { |part| acc << map_tool_result_for_responses(part, mapper) }
           next
         end
 
@@ -129,7 +131,39 @@ module OpenAiOAuth
       items
     end
 
+    def self.map_tool_result_for_responses(part, mapper)
+      return mapper.map_content(part) unless part.is_a?(Hash) && part[:type] == "tool_result"
+
+      normalized_output = normalize_tool_result_output(part[:content])
+      mapper.map_content(part.merge(content: normalized_output))
+    end
+
+    def self.normalize_tool_result_output(output)
+      Array(output).map do |item|
+        case item
+        when String
+          { type: "input_text", text: item }
+        when Hash
+          type = item[:type] || item["type"]
+          case type
+          when "text", "input_text", "output_text"
+            { type: "input_text", text: (item[:text] || item["text"]).to_s }
+          when "image", "input_image"
+            data = item[:data] || item["data"]
+            mime = item[:mimeType] || item["mimeType"] || item[:media_type] || item["media_type"] || "image/png"
+            image_url = item[:image_url] || item["image_url"] || "data:#{mime};base64,#{data}"
+            { type: "input_image", image_url: image_url }
+          else
+            item
+          end
+        else
+          { type: "input_text", text: item.to_s }
+        end
+      end
+    end
+
     private_class_method :strip_reasoning_blocks, :normalize_assistant_content_types,
-      :tool_result_message?, :map_assistant_content
+      :tool_result_message?, :map_assistant_content, :map_tool_result_for_responses,
+      :normalize_tool_result_output
   end
 end
