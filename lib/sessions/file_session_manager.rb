@@ -2,51 +2,59 @@ require 'json'
 require 'securerandom'
 
 class FileSessionManager
-  attr_reader :session_id, :session_start, :transcript
+  attr_reader :session_id, :session_start, :events
   attr_accessor :model
 
   def initialize(session_id: SecureRandom.uuid, session_start: Time.now.strftime('%Y%m%d_%H%M%S'))
     @session_id = session_id
     @session_start = session_start
-    @transcript = []
+    @events = []
   end
 
-  def transcript_file
+  def session_file
     dir = File.expand_path('../../sessions', __dir__)
     Dir.mkdir(dir) unless Dir.exist?(dir)
-    File.join(dir, "#{session_start}_#{session_id}.json")
+    File.join(dir, "#{session_start}_#{session_id}.jsonl")
   end
 
-  def push(message)
-    @transcript << message
-    write_session
+  def on_notify(event)
+    return unless event.is_a?(Hash)
+
+    return unless %i[user_message assistant_message].include?(event[:name])
+
+    payload = event[:payload]
+    # "type":"message",,"timestamp":"2026-02-09T05:09:21.359Z","message"
+    push_entry({type: 'message', timestamp: Time.now, message:payload})
+  rescue StandardError
+    nil
   end
 
-  def truncate(length)
-    safe_length = [[length.to_i, 0].max, @transcript.length].min
-    @transcript = @transcript.take(safe_length)
-    write_session
+  def push_entry(entry)
+    parent_id = events.length.positive? ? events.last[:id] : nil
+    new_entry = { id: SecureRandom.uuid, parent_id:, **entry }
+    @events << new_entry
+    append_message(new_entry)
   end
 
-  def write_session
-    transcript_data = {
-      model: model,
-      messages: @transcript
-    }
-    File.write(transcript_file, JSON.pretty_generate(transcript_data))
+
+  def append_message(message)
+    File.open(session_file, 'a') do |f|
+      f.puts(JSON.generate(message))
+    end
   end
+
 
   def self.load_session(file_name)
     base_name = File.basename(file_name)
-    match = base_name.match(/\A(\d{8}_\d{6})_(.+)\.json\z/)
+    match = base_name.match(/\A(\d{8}_\d{6})_(.+)\.jsonl\z/)
     raise ArgumentError, "Invalid session filename: #{file_name}" unless match
 
     manager = new(session_start: match[1], session_id: match[2])
-    manager.load_transcript(file_name)
+    manager.load_session(file_name)
     manager
   end
 
-  def load_transcript(file_name)
+  def load_session(file_name)
     base_name = File.basename(file_name)
     session_path = if File.absolute_path(file_name) == file_name
                      file_name
@@ -54,21 +62,29 @@ class FileSessionManager
                      File.join(File.expand_path('../../sessions', __dir__), base_name)
                    end
 
-    data = LlmGateway::Utils.deep_symbolize_keys(JSON.parse(File.read(session_path)))
+    @events = []
+    File.foreach(session_path).with_index(1) do |line, line_number|
+      next if line.strip.empty?
 
-    @transcript = case data
-                  when Array
-                    data
-                  when Hash
-                    data['messages'] || data[:messages] || []
-                  else
-                    raise ArgumentError, "Invalid session file format: expected Array or Hash"
-                  end
+      @events << JSON.parse(line, symbolize_names: true)
+    rescue JSON::ParserError => e
+      raise ArgumentError, "Invalid JSONL in #{session_path} at line #{line_number}: #{e.message}"
+    end
+
     self
   end
 
+  def current_transcript
+    @events.filter_map do |event|
+      type = event[:type] || event['type']
+      next unless type.to_s == 'message'
+
+      event[:message] || event['message']
+    end
+  end
+
   def emit_transcript
-    @transcript.each do |message|
+    @events.each do |message|
       Events.instance.notify('llm.replay_message', message)
     end
   end

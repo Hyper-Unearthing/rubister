@@ -17,8 +17,6 @@ class InteractiveRunner
 
     puts "Interactive mode (type 'exit' or 'quit' to end, Ctrl+D to send EOF)"
     puts '---'
-    @agent.session_manager.emit_transcript
-    puts if @agent.session_manager.transcript.any?
     loop do
       $stdout.flush
 
@@ -38,9 +36,7 @@ class InteractiveRunner
       message = input.strip
       next if message.empty?
 
-      @agent.run(message) do |output|
-        Events.instance.notify('llm.message', output)
-      end
+      @agent.run(message)
     end
 
     puts 'Goodbye!'

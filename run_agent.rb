@@ -5,11 +5,11 @@ require 'securerandom'
 require 'json'
 require 'llm_gateway'
 require 'singleton'
-require_relative 'agent'
-require_relative 'prompt'
-require_relative 'events'
+require_relative 'lib/agent'
+require_relative 'lib/prompt'
+require_relative 'lib/events'
 require_relative 'lib/openai_oauth'
-require_relative 'format_stream'
+require_relative 'lib/format_stream'
 require_relative 'modes/interactive'
 require_relative 'lib/sessions/file_session_manager'
 
@@ -94,13 +94,13 @@ class AgentRunner
     end
 
     client = LlmGateway.build_provider(config)
-    @agent = Agent.new(Prompt, model, client, session_manager)
-
+    @agent = Agent.new(Prompt, model, client)
+    @agent.subscribe(formatter)
+    @agent.subscribe(session_manager)
+    @agent.transcript = session_manager.current_transcript || []
     if @options[:message]
       # Single message mode
-      @agent.run(@options[:message]) do |message|
-        Events.instance.notify('llm.message', message)
-      end
+      @agent.run(@options[:message])
     else
       runner = InteractiveRunner.new(@agent)
       runner.run
