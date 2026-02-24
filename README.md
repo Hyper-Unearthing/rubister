@@ -50,6 +50,43 @@ Each JSONL log entry includes:
   # resume, you can resume in -m or interactive mode
   ./gruv -s sessions/20260224_164714_1846b412-9260-4e18-aa96-c1b67eb93581.jsonl
 ```
+  
+## Database migrations (SQLite + ActiveRecord)
+
+Database file:
+- `instance/gruv.sqlite3`
+
+Migration files:
+- `db/migrate/*.rb`
+
+Install deps (once):
+```bash
+bundle install
+```
+
+Create a migration:
+```bash
+bundle exec ruby db_tool.rb new create_users
+```
+
+Run migrations:
+```bash
+bundle exec ruby db_tool.rb migrate
+```
+
+Rollback one step:
+```bash
+bundle exec ruby db_tool.rb rollback
+```
+
+Useful commands:
+```bash
+bundle exec ruby db_tool.rb status
+bundle exec ruby db_tool.rb version
+bundle exec ruby db_tool.rb migrate 20260224130000   # migrate to specific version
+bundle exec ruby db_tool.rb rollback 2               # rollback 2 steps
+DB_LOG=1 bundle exec ruby db_tool.rb migrate         # show SQL logs
+```
 
 ## Distribution
 
