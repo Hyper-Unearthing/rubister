@@ -56,6 +56,12 @@ module OpenAiOAuth
       when "response.reasoning_summary_text.delta"
         handle_thinking_delta(data)
 
+      when "error"
+        handle_error(data)
+
+      when "response.failed", "response.incomplete"
+        handle_response_failure(data)
+
       else
         nil
       end
@@ -124,7 +130,7 @@ module OpenAiOAuth
       thinking_block = @content.select { |b| b[:type] == "thinking" }.last
       if thinking_block
         thinking_block[:thinking] << delta
-        { type: :thinking_delta, text: delta }
+        { type: :thinking_delta, thinking: delta }
       end
     end
 
@@ -164,6 +170,45 @@ module OpenAiOAuth
       @id ||= response[:id]
       @model ||= response[:model]
       nil
+    end
+
+    def handle_error(data)
+      error = data[:error] || data
+      error_type = (error[:type] || "unknown_error").to_s
+      error_code = error[:code] || error_type
+      error_message = error[:message] || "Unknown streaming error"
+
+      raise_stream_error(error_type, error_code, error_message)
+    end
+
+    def handle_response_failure(data)
+      response = data[:response] || data
+      error = response[:error] || response[:incomplete_details] || {}
+
+      error_type = (error[:type] || response[:status] || "response_failed").to_s
+      error_code = error[:code] || error_type
+      error_message = error[:message] || "Response failed"
+
+      raise_stream_error(error_type, error_code, error_message)
+    end
+
+    def raise_stream_error(error_type, error_code, error_message)
+      case error_type
+      when "authentication_error", "invalid_api_key"
+        raise LlmGateway::Errors::AuthenticationError.new(error_message, error_code)
+      when "rate_limit_error", "rate_limit_exceeded", "insufficient_quota"
+        raise LlmGateway::Errors::RateLimitError.new(error_message, error_code)
+      when "overloaded_error", "server_overloaded", "service_unavailable"
+        raise LlmGateway::Errors::OverloadError.new(error_message, error_code)
+      when "invalid_request_error", "context_length_exceeded"
+        if error_code.to_s == "context_length_exceeded" || error_message.downcase.include?("context window")
+          raise LlmGateway::Errors::PromptTooLong.new(error_message, error_code)
+        end
+
+        raise LlmGateway::Errors::BadRequestError.new(error_message, error_code)
+      else
+        raise LlmGateway::Errors::APIStatusError.new(error_message, error_code)
+      end
     end
 
     def ensure_text_block
