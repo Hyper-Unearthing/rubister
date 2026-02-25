@@ -1,7 +1,10 @@
 require 'securerandom'
 require 'time'
+require_relative 'concerns/basic_compaction'
 
 class BaseSessionManager
+  include BasicCompaction
+
   attr_reader :session_id, :session_start, :events
   attr_accessor :model
 
@@ -49,32 +52,6 @@ class BaseSessionManager
     assemble_with_compaction(messages: latest_transcript[:messages], compaction_data: latest_transcript[:compaction_data])
   end
 
-  def compaction(adapter, messages_to_keep: 2)
-    entries = message_entries
-    return nil if entries.length <= messages_to_keep
-
-    split_index = entries.length - messages_to_keep
-    entries_to_summarise = entries[0...split_index]
-    first_kept_entry = entries[split_index]
-
-    result = CompactionPrompt.new(adapter, entries_to_summarise).post
-    text_parts = result[:choices]&.dig(0, :content).select { |part| part[:type] == 'text' }
-    summary = text_parts[0][:text]
-    raise 'Compaction Error' if summary.empty?
-
-    compaction_entry = {
-      type: 'compaction',
-      usage: result[:usage],
-      data: {
-        summary: summary,
-        first_kept_entry_id: first_kept_entry[:id]
-      }
-    }
-
-    push_entry(compaction_entry)
-    compaction_entry
-  end
-
   private
 
   def assemble_with_compaction(messages:, compaction_data:)
@@ -90,7 +67,17 @@ class BaseSessionManager
       ]
     }
 
-    [summary_message, *messages]
+    [summary_message, *drop_leading_non_text_messages(messages)]
+  end
+
+  def drop_leading_non_text_messages(messages)
+    messages.drop_while { |message| !text_only_message?(message) }
+  end
+
+  def text_only_message?(message)
+    return false if message[:content].empty?
+
+    message[:content].all? { |part| ['text', 'input_text', 'output_text'].include?(part[:type]) }
   end
 
   def fetch_latest_transcript
