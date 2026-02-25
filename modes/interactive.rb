@@ -74,11 +74,11 @@ class InteractiveRunner
   private
 
   def replay_transcript
-    transcript = Array(@agent_session.raw_transcript)
+    transcript = @agent_session.raw_transcript
     return if transcript.empty?
 
     transcript.each do |message|
-      @formatter.on_notify(name: :replay_message, payload: message)
+      @formatter.replay_message(message)
     end
 
     last = transcript.last
