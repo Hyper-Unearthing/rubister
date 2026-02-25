@@ -14,7 +14,7 @@ class Agent
   end
 
   def run(user_input)
-    publish_user_message([{ type: 'text', text: user_input }])
+    publish_user_input([{ type: 'text', text: user_input }])
     response = send_and_process
     publish(:done, response)
   end
@@ -38,7 +38,6 @@ class Agent
 
     if tool_uses.any?
       tool_results = tool_uses.map do |message|
-        publish(:tool_use, { type: :tool_use, id: message[:id], name: message[:name], input: message[:input] })
         result = handle_tool_use(message)
 
         tool_result = {
@@ -47,7 +46,6 @@ class Agent
           content: result
         }
 
-        publish(:tool_result, tool_result)
         tool_result
       end
       publish_user_message(tool_results)
@@ -60,14 +58,21 @@ class Agent
   def publish_assistant_message(content, usage = nil)
     assistant_message = { role: 'assistant', content: content }
     assistant_message[:usage] = usage if usage
-    publish(:assistant_message, assistant_message)
+    publish(:message, assistant_message)
     transcript.push(assistant_message)
     assistant_message
   end
 
+  def publish_user_input(content)
+    user_message = { role: 'user', content: content }
+    publish(:user_input, user_message)
+    transcript.push(user_message)
+    user_message
+  end
+
   def publish_user_message(content)
     user_message = { role: 'user', content: content }
-    publish(:user_message, user_message)
+    publish(:message, user_message)
     transcript.push(user_message)
     user_message
   end

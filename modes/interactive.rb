@@ -78,7 +78,7 @@ class InteractiveRunner
     return if transcript.empty?
 
     transcript.each do |message|
-      @formatter.on_notify(name: :replay_message, payload: message)
+      @formatter.replay_message(message)
     end
 
     last = transcript.last

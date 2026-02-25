@@ -20,13 +20,13 @@ class FileSessionManager
   end
 
   def on_notify(event)
-    return unless event.is_a?(Hash)
-    return unless %i[user_message assistant_message].include?(event[:name])
+  payload = event[:payload]
+  name = event[:name]
 
-    payload = event[:payload]
+  case name
+  when :user_input, :message
     push_entry({ type: 'message', message: payload })
-  rescue StandardError
-    nil
+  end
   end
 
   def push_entry(entry)

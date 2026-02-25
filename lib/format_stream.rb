@@ -10,133 +10,106 @@ COLORS = {
 }.freeze
 
 class Formatter
-  attr_reader :in_delta
 
-  def initialize
-    @in_delta = false
-    @last_role = nil
-    @saw_stream_delta = false
+  def replay_message(event)
+    contents = Array(event.dig(:content))
+    role = event.dig(:role)
+
+    if role.to_s == 'user'
+      contents.each do |content|
+        if content[:type] == 'text'
+          display_user_message(contents)
+        else
+          display_llm_activity(content)
+        end
+      end
+
+    else
+      contents.each do |content|
+        display_llm_activity(content)
+      end
+    end
   end
 
   def on_notify(event)
-    name = fetch(event, :name).to_s
-    payload = fetch(event, :payload)
+    name = event.dig(:name)
+    payload = event.dig(:payload)
 
-    # Global debug events are noisy in the UI.
-    return if name == 'debug'
     # In interactive mode, user input is already visible on the prompt line.
-    return if name == 'user_message'
+    return if name == :user_input
 
-    if name == 'done'
-      puts if @in_delta
-      @in_delta = false
-      puts
+    if name == :done
+      # Ensure the newline is emitted and flushed immediately at stream end.
+      puts("\n\r")
       return
     end
 
     event = payload unless payload.nil?
 
-    role = fetch(event, :role)
+    role = event.dig(:role)
 
     if role
-      puts if @in_delta
-      @in_delta = false
-
-      contents = Array(fetch(event, :content))
+      contents = event.dig(:content)
 
       if role.to_s == 'user'
-        puts if @last_role
         display_user_message(contents)
       else
-        # If we already streamed deltas for this assistant turn, skip replaying
-        # finalized text/thinking blocks (and tool_use blocks that are rendered
-        # via dedicated tool_use events).
-        if name == 'assistant_message' && @saw_stream_delta
-          contents = contents.reject do |content|
-            %w[text thinking tool_use].include?(fetch(content, :type).to_s)
-          end
-        end
 
         contents.each do |content|
-          display_llm_activity(content)
+          # text content came as stream
+          display_llm_activity(content) unless content[:type] == 'text'
         end
       end
 
-      @last_role = role.to_s
-      @saw_stream_delta = false if name == 'assistant_message'
     else
       display_llm_activity(event)
-      type_s = fetch(event, :type).to_s
-      @saw_stream_delta = true if %w[text_delta thinking_delta].include?(type_s)
     end
   rescue StandardError => e
-    puts if @in_delta
-    @in_delta = false
     puts "#{COLORS[:red]}[formatter error] #{e.message}#{COLORS[:reset]}"
   end
 
   def display_user_message(contents)
-    text_contents = Array(contents).select { |c| fetch(c, :type).to_s == 'text' }
-    first = text_contents.first
-    return if first.nil?
-
-    puts "> #{fetch(first, :text)}"
-    text_contents.drop(1).each { |content| puts fetch(content, :text) }
+    contents.each do |entry|
+      if entry[:type] == 'text'
+        puts "> #{entry.dig(:text)}"
+      else
+        display_llm_activity(entry)
+      end
+    end
   end
 
   def display_llm_activity(hash)
-    type_s = fetch(hash, :type).to_s
-
-    case type_s
+     #text delta is a key
+    case hash.dig(:type).to_s
     when 'text'
-      puts fetch(hash, :text)
+      puts hash.dig(:text)
     when 'text_delta'
-      @in_delta = true
-      print fetch(hash, :text)
+      print hash.dig(:text)
     when 'thinking_delta'
-      @in_delta = true
-      print "#{COLORS[:dim]}#{fetch(hash, :thinking)}#{COLORS[:reset]}"
+      print "#{COLORS[:dim]}#{hash.dig(:thinking)}#{COLORS[:reset]}"
     when 'thinking'
-      thinking = fetch(hash, :thinking).to_s
+      thinking = hash.dig(:thinking).to_s
       puts "#{COLORS[:dim]}#{thinking}#{COLORS[:reset]}" unless thinking.empty?
     when 'tool_use'
-      puts if @in_delta
-      @in_delta = false
       puts
-      puts "  #{COLORS[:cyan]}#{COLORS[:bold]}#{fetch(hash, :name)}#{COLORS[:reset]}"
-      Array(fetch(hash, :input)).each do |key, value|
+      puts "  #{COLORS[:cyan]}#{COLORS[:bold]}#{hash.dig(:name)}#{COLORS[:reset]}"
+      Array(hash.dig(:input)).each do |key, value|
         puts "  #{COLORS[:dim]}#{key}: #{value}#{COLORS[:reset]}"
       end
-      puts "  #{COLORS[:dim]}id: #{fetch(hash, :id)}#{COLORS[:reset]}"
+      puts "  #{COLORS[:dim]}id: #{hash.dig(:id)}#{COLORS[:reset]}"
     when 'tool_result'
-      puts if @in_delta
-      @in_delta = false
-      id = fetch(hash, :tool_use_id)
+      id = hash.dig(:tool_use_id)
       id_part = id ? " (#{id})" : ''
-      content = fetch(hash, :content).to_s
+      content = hash.dig(:content).to_s
       puts
       puts "  #{COLORS[:green]}#{COLORS[:bold]}Result#{id_part}#{COLORS[:reset]}"
       content.each_line { |line| puts "  #{line.chomp}" }
     when 'done'
-      puts if @in_delta
-      @in_delta = false
       puts
     when 'error'
-      puts if @in_delta
-      @in_delta = false
-      puts "#{COLORS[:red]}[error] #{fetch(hash, :message)}#{COLORS[:reset]}"
+      puts "#{COLORS[:red]}[error] #{hash.dig(:message)}#{COLORS[:reset]}"
     else
-      puts if @in_delta
-      @in_delta = false
       puts "#{COLORS[:dim]}#{hash.inspect}#{COLORS[:reset]}"
     end
-  end
-
-  private
-
-  def fetch(hash, key)
-    return nil unless hash.is_a?(Hash)
-
-    hash[key] || hash[key.to_s]
   end
 end
