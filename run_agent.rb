@@ -16,6 +16,7 @@ require_relative 'modes/message'
 require_relative 'lib/sessions/file_session_manager'
 require_relative 'lib/sessions/sql_session_manager'
 require_relative 'lib/agent_session'
+require_relative 'lib/runtime_config'
 require_relative 'modes/daemon'
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
@@ -90,6 +91,8 @@ class AgentRunner
     end
 
     model = @options[:model] || provider_config['model_key']
+
+    RuntimeConfig.set(provider_name: name)
 
     configured_entries = providers.map do |provider_name, config|
       resolved_config = config.merge('provider' => provider_name)
