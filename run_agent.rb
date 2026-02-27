@@ -13,6 +13,7 @@ require_relative 'modes/daemon'
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
 
+# Simple runner that takes auth and message arguments
 class AgentRunner
   include ProviderAuthHelper
 
