@@ -64,6 +64,26 @@ Capability configs are set here `instance/config.json`
 
 Ctrl+C (`SIGINT`) on `./gruv --daemon` interrupts all child processes.
 
+## Cron job conventions
+
+Rubister can manage cron jobs via bash/`crontab`. To keep scheduling safe and maintainable:
+
+- Only manage entries marked with a Rubister job marker comment:
+  - `# rubister:job_id=<id>`
+- Do not edit unrelated crontab entries.
+- Reuse/update an existing `job_id` instead of creating duplicates.
+- Prefer checked-in scripts over complex inline cron commands.
+- Capture output to logs so runs can be inspected.
+- Default notifications to failure-only. Notify on success only when agent follow-up is needed.
+- After creating/updating a cron entry, verify with `crontab -l` and manually test the target script.
+
+Example:
+
+```cron
+# rubister:job_id=daily_inbox_summary
+0 9 * * * /app/rubister/scripts/daily_inbox_summary.sh >> /app/rubister/instance/logs/cron_daily_inbox_summary.log 2>&1
+```
+
 ## Inbox System
 
 Gruv includes a SQLite-backed inbox for message processing with priority-based queuing and daemon mode.
