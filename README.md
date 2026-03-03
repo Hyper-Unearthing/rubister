@@ -37,8 +37,8 @@ Each JSONL log entry includes:
 - `source_location` (`filepath`, `lineno`, `label`) when available
 
 ```bash
-  # Single message mode
-  ./gruv -m "whats this app"
+  # interactive mode
+  ./gruv
 ```
 
 ```bash
@@ -47,10 +47,29 @@ Each JSONL log entry includes:
 ```
 
 ```bash
-  # resume, you can resume in -m or interactive mode
+  # Resume a session (works in -m or interactive mode)
   ./gruv -s sessions/20260224_164714_1846b412-9260-4e18-aa96-c1b67eb93581.jsonl
 ```
-  
+
+```bash
+  # Daemon mode (supervisor): starts ALL
+  # 1) daemon worker (inbox reader/agent)
+  # 2) registered writers (inbox writer)
+  ./gruv --daemon                    # Poll every 1 second (default)
+  ./gruv --daemon --poll-interval 5  # Poll every 5 seconds
+```
+
+Capability configs are set here `instance/config.json`
+
+
+Ctrl+C (`SIGINT`) on `./gruv --daemon` interrupts all child processes.
+
+## Inbox System
+
+Gruv includes a SQLite-backed inbox for message processing with priority-based queuing and daemon mode.
+
+**📚 Full documentation**: [docs/INBOX_INDEX.md](docs/INBOX_INDEX.md)
+
 ## Database migrations (SQLite + ActiveRecord)
 
 Database file:
