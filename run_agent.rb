@@ -9,6 +9,7 @@ require_relative 'lib/agent'
 require_relative 'lib/prompt'
 require_relative 'lib/logging'
 require_relative 'lib/openai_oauth'
+require_relative 'lib/anthropic_oauth'
 require_relative 'lib/instance_file_scope'
 require_relative 'modes/interactive'
 require_relative 'modes/message'
@@ -85,18 +86,8 @@ class AgentRunner
 
     LlmGateway.reset_configuration!
     LlmGateway.configure(configured_entries)
-
-    session_manager = begin
-      if @options[:session_file]
-        FileSessionManager.load_session(@options[:session_file])
-      else
-        FileSessionManager.new
-      end
-    rescue StandardError => e
-      puts "Failed to load session '#{@options[:session_file]}': #{e.message}"
-      exit 1
-    end
     client = LlmGateway.configured_clients[name.to_sym]
+
     unless client
       puts "Configured client '#{name}' not found"
       puts "Available configured clients: #{LlmGateway.configured_clients.keys.join(', ')}"
@@ -104,7 +95,7 @@ class AgentRunner
     end
 
     @agent = Agent.new(Prompt, model, client)
-    agent_session = AgentSession.new @agent, session_manager
+    agent_session = AgentSession.new @agent, FileSessionManager.new(@options[:session_file])
 
 
     if @options[:message]

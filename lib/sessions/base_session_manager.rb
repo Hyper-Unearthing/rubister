@@ -1,6 +1,7 @@
 require 'securerandom'
 require 'time'
 require_relative 'concerns/basic_compaction'
+require_relative '../llm_gateway_providers/usage_normalizer'
 
 class BaseSessionManager
   include BasicCompaction
@@ -8,10 +9,17 @@ class BaseSessionManager
   attr_reader :session_id, :session_start, :events
   attr_accessor :model
 
-  def initialize(session_id:, session_start:, events: [])
-    @session_id = session_id
-    @session_start = session_start
-    @events = events
+  def initialize(events)
+    if(events)
+      session_event = events[0]
+      @session_id = session_event[:id]
+      @session_start = session_event[:timestamp]
+      @events = events
+    else
+      @session_id = SecureRandom.uuid
+      @session_start = Time.now.strftime('%Y%m%d_%H%M%S')
+      @events = [{ type: 'session', id: session_id, timestamp: session_start }]
+    end
   end
 
   def on_notify(event)
@@ -50,6 +58,10 @@ class BaseSessionManager
   def assemble_transcript
     latest_transcript = fetch_latest_transcript
     assemble_with_compaction(messages: latest_transcript[:messages], compaction_data: latest_transcript[:compaction_data])
+  end
+
+  def total_tokens
+    message_entries.reverse.find { |entry| entry.dig(:usage, :total_tokens) }&.dig(:usage, :total_tokens).to_i
   end
 
   private
@@ -96,7 +108,15 @@ class BaseSessionManager
     raise NotImplementedError, '#message_entries must be implemented in subclasses'
   end
 
+  def last_summary
+    raise NotImplementedError, '#last_summary must be implemented in subclasses'
+  end
+
+  def last_compaction_entry
+    raise NotImplementedError, '#last_compaction_entry must be implemented in subclasses'
+  end
+
   def message_usage(message)
-    message[:usage]
+    UsageNormalizer.normalize(message[:usage])
   end
 end
