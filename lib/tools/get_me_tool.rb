@@ -5,6 +5,8 @@ require_relative '../writer_registry'
 require_relative '../errors'
 
 class GetMeTool < LlmGateway::Tool
+  def self.platform_tool? = true
+
   name 'GetMe'
   description 'Get bot identity for Telegram or Discord using a unified interface.'
   input_schema({

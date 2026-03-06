@@ -5,6 +5,8 @@ require_relative '../writer_registry'
 require_relative '../errors'
 
 class SendVoiceTool < LlmGateway::Tool
+  def self.platform_tool? = true
+
   name 'SendVoice'
   description 'Send a voice message to Telegram or Discord using a unified interface.'
   input_schema({

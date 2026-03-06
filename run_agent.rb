@@ -5,17 +5,12 @@ require 'securerandom'
 require 'json'
 require 'llm_gateway'
 require 'singleton'
-require_relative 'lib/agent'
-require_relative 'lib/prompt'
 require_relative 'lib/logging'
 require_relative 'lib/openai_oauth'
 require_relative 'lib/anthropic_oauth'
 require_relative 'lib/instance_file_scope'
 require_relative 'modes/interactive'
 require_relative 'modes/message'
-require_relative 'lib/sessions/file_session_manager'
-require_relative 'lib/sessions/sql_session_manager'
-require_relative 'lib/agent_session'
 require_relative 'lib/runtime_config'
 require_relative 'modes/daemon'
 # Enable immediate output flushing for real-time streaming
@@ -102,13 +97,6 @@ class AgentRunner
 
     LlmGateway.reset_configuration!
     LlmGateway.configure(configured_entries)
-
-    session_manager = begin
-    if @options[:daemon]
-      SqlSessionManager.new
-    else
-      FileSessionManager.new(@options[:session_file])
-    end
 
     client = LlmGateway.configured_clients[name.to_sym]
 

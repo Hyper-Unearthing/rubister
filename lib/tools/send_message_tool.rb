@@ -5,6 +5,8 @@ require_relative '../writer_registry'
 require_relative '../errors'
 
 class SendMessageTool < LlmGateway::Tool
+  def self.platform_tool? = true
+
   name 'SendMessage'
   description <<~DESC
     Send a text message to Telegram or Discord using a unified interface.

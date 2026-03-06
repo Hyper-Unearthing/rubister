@@ -11,6 +11,8 @@ require_relative '../instance_file_scope'
 require_relative '../runtime_config'
 
 class SpawnCloneTaskTool < LlmGateway::Tool
+  def self.platform_tool? = true
+
   name 'spawn_clone_task'
   description 'Spawn a background clone task that runs Gruv on a provided feature message and reports completion into the inbox.'
   input_schema({

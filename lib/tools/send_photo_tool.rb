@@ -5,6 +5,8 @@ require_relative '../writer_registry'
 require_relative '../errors'
 
 class SendPhotoTool < LlmGateway::Tool
+  def self.platform_tool? = true
+
   name 'SendPhoto'
   description 'Send a photo to Telegram or Discord using a unified interface.'
   input_schema({
