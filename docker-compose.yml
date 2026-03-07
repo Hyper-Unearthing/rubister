@@ -1,0 +1,9 @@
+services:
+  gruv:
+    build: .
+    volumes:
+      # Persistent runtime state: providers.json, sqlite db, logs, etc.
+      - ./instance:/app/rubister/instance
+    # Default: run the daemon. Override with e.g.:
+    #   docker compose run rubister ./gruv -m "hello"
+    command: ["./gruv", "--daemon"]

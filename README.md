@@ -127,6 +127,49 @@ bundle exec ruby db_tool.rb rollback 2               # rollback 2 steps
 DB_LOG=1 bundle exec ruby db_tool.rb migrate         # show SQL logs
 ```
 
+## Running with Docker
+
+The container clones `rubister` and `llm_gateway` from GitHub on startup, runs `bundle install`, then executes the given command. The `instance/` directory is mounted as a volume so config, the SQLite database, and logs persist across restarts.
+
+**Build the image:**
+```bash
+docker compose build
+```
+
+**Run setup (first time):**
+```bash
+docker compose run --rm gruv bundle exec ruby setup.rb
+```
+
+This writes config into `./instance/` on your host machine.
+
+**Run migrations:**
+```bash
+docker compose run --rm gruv bundle exec ruby db_tool.rb migrate
+```
+
+**Start the daemon:**
+```bash
+docker compose up
+```
+
+**One-shot message:**
+```bash
+docker compose run --rm gruv ./gruv -m "whats this app"
+```
+
+**Interactive mode:**
+```bash
+docker compose run --rm -it gruv ./gruv
+```
+
+**Resume a session:**
+```bash
+docker compose run --rm -it gruv ./gruv -s sessions/20260224_164714_1846b412-9260-4e18-aa96-c1b67eb93581.jsonl
+```
+
+Logs and the SQLite database land in `./instance/` on the host, same as a local run.
+
 ## Distribution
 
 Packaging/distributable tarball flow has been removed.
