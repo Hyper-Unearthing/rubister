@@ -8,18 +8,27 @@ git clone git@github.com:Hyper-Unearthing/rubister.git
 cd rubister
 ```
 
-Using OpenAI plan
+Run the unified setup wizard (can be run multiple times safely):
 ```bash
-bundle exec ruby setup_provider.rb openai
-./gruv -p openai_oauth_responses
+bundle exec ruby setup.rb
 ```
-Using Anthropic plan
+
+The wizard lets you pick which things to configure:
+- **Anthropic / OpenAI** — OAuth flow; re-running the same provider refreshes tokens while
+  preserving model and reasoning settings unless you change them
+- **Telegram** — bot token
+- **Discord** — bot token, app credentials, install URL generation
+- **AssemblyAI** — transcription API key
+
+Config is written to `instance/config.json` and `instance/providers.json`.
+
+After setup, run gruv with your chosen provider:
 ```bash
-bundle exec ruby setup_provider.rb anthropic
+./gruv -p openai_oauth_responses
 ./gruv -p anthropic_oauth_messages
 ```
 
-You can set up multiple providers — they'll all be stored in `instance/providers.json`. not sure which will be called by default if you do, but you can always use -p to specify which one
+You can set up multiple providers — they'll all be stored in `instance/providers.json`. Use `-p` to specify which one.
 
 ## Logging
 
