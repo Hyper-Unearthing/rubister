@@ -6,6 +6,40 @@ class Prompt < LlmGateway::Prompt
     .sort_by(&:name)
     .freeze
 
+  BASE_ARCHITECTURE_PATH = File.join(__dir__, '..', 'docs', 'base-architecture.md')
+  FEATURES_BUILT_PATH = File.join(__dir__, '..', 'instance', 'features-built.md')
+  SOUL_PATH = File.join(__dir__, '..', 'instance', 'soul.md')
+  LEARNT_BEHAVIOURS_PATH = File.join(__dir__, '..', 'instance', 'learnt-behaviours.md')
+  SYSTEM_PROMPT_PATH = File.join(__dir__, '..', 'docs', 'system-prompt.md')
+
+  RUNTIME_PROMPT_DEFAULTS = {
+    FEATURES_BUILT_PATH => <<~TEXT,
+      # Features Built
+
+      Tracks features gruv has built for itself.
+
+      ## Entries
+      - (none yet)
+    TEXT
+    SOUL_PATH => <<~TEXT,
+      # Soul
+
+      Persistent identity, intent, and core principles for gruv.
+
+      ## Current
+      - Help the user effectively.
+      - Improve over time.
+    TEXT
+    LEARNT_BEHAVIOURS_PATH => <<~TEXT
+      # Learnt Behaviours
+
+      Behaviours gruv has learnt from interaction with the user.
+
+      ## Current
+      - (none yet)
+    TEXT
+  }.freeze
+
   def initialize(transcript, client)
     super(client.client.model_key)
     @transcript = transcript
@@ -21,7 +55,16 @@ class Prompt < LlmGateway::Prompt
   end
 
   def system_prompt
-    content = File.read(File.join(__dir__, '..', 'system_prompt.md'))
+    ensure_runtime_prompt_docs!
+
+    content = [
+      File.read(BASE_ARCHITECTURE_PATH),
+      File.read(FEATURES_BUILT_PATH),
+      File.read(SOUL_PATH),
+      File.read(LEARNT_BEHAVIOURS_PATH),
+      File.read(SYSTEM_PROMPT_PATH)
+    ].join("\n\n")
+
     [{ role: 'system', content: content, cache_control: { 'type': 'ephemeral' } }]
   end
 
@@ -43,6 +86,14 @@ class Prompt < LlmGateway::Prompt
   end
 
   private
+
+  def ensure_runtime_prompt_docs!
+    RUNTIME_PROMPT_DEFAULTS.each do |path, default_content|
+      next if File.exist?(path)
+
+      File.write(path, default_content)
+    end
+  end
 
   def deep_symbolize_keys(obj)
     case obj
