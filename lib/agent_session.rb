@@ -30,4 +30,10 @@ class AgentSession
   def compacted_transcript
     @session_manager.assemble_transcript
   end
+
+  def fix_missing_tool_result(tool_use_id)
+    updated_count = @session_manager.fix_missing_tool_result(tool_use_id)
+    @agent.transcript = compacted_transcript
+    updated_count
+  end
 end
