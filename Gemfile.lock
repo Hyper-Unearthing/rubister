@@ -1,5 +1,7 @@
-PATH
-  remote: ../llm_gateway
+GIT
+  remote: https://github.com/Hyper-Unearthing/llm_gateway.git
+  revision: 21d19f6293a5f30b3eedd4a5dae23c57863eb669
+  branch: refactor/providers
   specs:
     llm_gateway (0.3.0)
 
@@ -51,5 +53,8 @@ DEPENDENCIES
   rake
   singleton
 
+RUBY VERSION
+  ruby 4.0.1
+
 BUNDLED WITH
-   2.6.7
+  4.0.7
