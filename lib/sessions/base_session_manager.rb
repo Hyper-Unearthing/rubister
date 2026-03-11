@@ -108,6 +108,10 @@ class BaseSessionManager
     raise NotImplementedError, '#message_entries must be implemented in subclasses'
   end
 
+  def compaction_source_messages
+    message_entries
+  end
+
   def last_summary
     raise NotImplementedError, '#last_summary must be implemented in subclasses'
   end
