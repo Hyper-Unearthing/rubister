@@ -71,6 +71,15 @@ class AgentRunner
     end.parse!
   end
 
+  def sanitize_provider_config(provider_name, config)
+    if provider_name == 'anthropic_oauth_messages' && config.key?('reasoning_effort')
+      config = config.dup
+      config.delete('reasoning_effort')
+    end
+
+    config
+  end
+
   def run
     parse_args
     client = build_client
