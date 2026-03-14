@@ -26,7 +26,8 @@ OPENAI_API_KEY=... ./gruv -p openai_apikey_completions
 OPENAI_API_KEY=... ./gruv -p openai_apikey_responses
 ```
 
-`-p` maps directly to llm_gateway provider keys. Use `-m` for model.
+`-p` maps directly to llm_gateway provider keys. Use `-m`/`--model` for model selection.
+Use `--message` for single-message mode.
 OAuth auth is read from `~/.config/gruv/auth.json`.
 
 Stream test provider/model combinations:
@@ -45,6 +46,19 @@ OPENAI_API_KEY=... ./gruv -p openai_apikey_responses -m gpt-5.4
 ruby setup_provider.rb openai
 ./gruv -p openai_oauth_codex -m gpt-5.4
 ```
+Run the unified setup wizard (can be run multiple times safely):
+
+```bash
+bundle exec ruby setup.rb
+./gruv -p openai_oauth_codex -m gpt-5.4
+```
+
+The wizard lets you pick which things to configure:
+- **Anthropic / OpenAI** — OAuth flow; re-running the same provider refreshes tokens while
+  preserving model and reasoning settings unless you change them
+- **Telegram** — bot token
+- **Discord** — bot token, app credentials, install URL generation
+- **AssemblyAI** — transcription API key
 
 ## Logging
 
@@ -52,14 +66,23 @@ Gruv uses an event-based logging system (`lib/logging.rb`) instead of direct `pu
 
 - Runtime and operational logs are emitted via `Logging.instance.notify(name, payload)`.
 - Use scoped names (for example: `daemon.start`, `daemon.message.complete`, `setup.error.provider_not_found`) and include details in the payload hash.
-- Logs are written to `instance/logs.jsonl` by `LogFileWriter`.
+- Logs are written as JSONL by `LogFileWriter`.
+  - Supervisor-managed processes (`gruv`, `daemon_supervisor`, `telegram_writer`, `discord_writer`) write to `instance/daemon_logs.jsonl`.
+  - Interactive/message modes write to `instance/interactive_logs.jsonl` and `instance/message_logs.jsonl`.
 
 
 Each JSONL log entry includes:
 - `name` (event name, e.g. `log`, `setup.start`, `daemon.message.complete`)
 - `payload` (event data)
 - `timestamp`
+- `process` (emitter name, e.g. `daemon`, `telegram_writer`)
+- `pid` (OS process id)
 - `source_location` (`filepath`, `lineno`, `label`) when available
+
+```bash
+  # Interactive mode
+  ./gruv
+```
 
 ```bash
   # Single message mode
@@ -67,8 +90,84 @@ Each JSONL log entry includes:
 ```
 
 ```bash
-  # resume, you can resume in -m or interactive mode
+  # Resume a session (works in --message or interactive mode)
   ./gruv -s sessions/20260224_164714_1846b412-9260-4e18-aa96-c1b67eb93581.jsonl
+```
+
+```bash
+  # Daemon mode (supervisor): starts ALL
+  # 1) daemon worker (inbox reader/agent)
+  # 2) registered writers (inbox writer)
+  ./gruv --daemon                    # Poll every 1 second (default)
+  ./gruv --daemon --poll-interval 5  # Poll every 5 seconds
+```
+
+Capability configs are set here `instance/config.json`
+
+
+Ctrl+C (`SIGINT`) on `./gruv --daemon` interrupts all child processes.
+
+## Cron job conventions
+
+Gruv can manage cron jobs via bash/`crontab`. To keep scheduling safe and maintainable:
+
+- Only manage entries marked with a Gruv job marker comment:
+  - `# gruv:job_id=<id>`
+- Do not edit unrelated crontab entries.
+- Reuse/update an existing `job_id` instead of creating duplicates.
+- Prefer checked-in scripts over complex inline cron commands.
+- Capture output to logs so runs can be inspected.
+- Default notifications to failure-only. Notify on success only when agent follow-up is needed.
+- After creating/updating a cron entry, verify with `crontab -l` and manually test the target script.
+
+Example:
+
+```cron
+# gruv:job_id=daily_inbox_summary
+0 9 * * * /app/gruv/scripts/daily_inbox_summary.sh >> /app/gruv/instance/logs/cron_daily_inbox_summary.log 2>&1
+```
+
+## Inbox System
+
+Gruv includes a SQLite-backed inbox for message processing with priority-based queuing and daemon mode.
+
+**📚 Full documentation**: [docs/INBOX_INDEX.md](docs/INBOX_INDEX.md)
+
+## Database migrations (SQLite + ActiveRecord)
+
+Database file:
+- `instance/gruv.sqlite3`
+
+Migration files:
+- `db/migrate/*.rb`
+
+Install deps (once):
+```bash
+bundle install
+```
+
+Create a migration:
+```bash
+bundle exec ruby db_tool.rb new create_users
+```
+
+Run migrations:
+```bash
+bundle exec ruby db_tool.rb migrate
+```
+
+Rollback one step:
+```bash
+bundle exec ruby db_tool.rb rollback
+```
+
+Useful commands:
+```bash
+bundle exec ruby db_tool.rb status
+bundle exec ruby db_tool.rb version
+bundle exec ruby db_tool.rb migrate 20260224130000   # migrate to specific version
+bundle exec ruby db_tool.rb rollback 2               # rollback 2 steps
+DB_LOG=1 bundle exec ruby db_tool.rb migrate         # show SQL logs
 ```
 
 ## Distribution
