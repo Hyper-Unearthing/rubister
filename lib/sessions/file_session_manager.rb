@@ -11,9 +11,11 @@ class FileSessionManager < BaseSessionManager
 
   include BasicCompaction
 
-  def initialize(file_name)
+  def initialize(file_name, session_id: nil, session_start: nil)
     super()
     @file_name = file_name
+    @preset_session_id = session_id
+    @preset_session_start = session_start
   end
 
   def events
@@ -33,20 +35,25 @@ class FileSessionManager < BaseSessionManager
     end
   end
 
-
   private
 
   def create_new_session
-    @session_id = SecureRandom.uuid
-    @session_start = Time.now.strftime('%Y%m%d_%H%M%S')
+    @session_id = @preset_session_id || SecureRandom.uuid
+    @session_start = @preset_session_start || Time.now.strftime('%Y%m%d_%H%M%S')
+
+    session_event = {
+      type: 'session',
+      id: session_id,
+      timestamp: session_start
+    }
 
     @session_path ||= File.join(session_dir, "#{session_start}_#{session_id}.jsonl")
     FileUtils.mkdir_p(File.dirname(@session_path))
     File.open(@session_path, 'a') do |f|
-      f.puts(JSON.generate([{ type: 'session', id: session_id, timestamp: session_start }]))
+      f.puts(JSON.generate(session_event))
     end
 
-    [new_session_event]
+    [session_event]
   end
 
   def load_session(session_path)
@@ -58,6 +65,10 @@ class FileSessionManager < BaseSessionManager
     rescue JSON::ParserError => e
       raise ArgumentError, "Invalid JSONL in #{session_path} at line #{line_number}: #{e.message}"
     end
+
+    session_event = events.find { |event| event[:type] == 'session' }
+    @session_id = session_event[:id] if session_event&.dig(:id)
+    @session_start = session_event[:timestamp] if session_event&.dig(:timestamp)
 
     events
   end

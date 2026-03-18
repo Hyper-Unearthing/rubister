@@ -87,6 +87,32 @@ class FileSessionManagerEventsTest < Minitest::Test
     assert_equal 'file contents', persisted_entries[3].dig(:data, :content, 0, :content)
   end
 
+  def test_create_new_session_can_use_preset_session_identity
+    manager = FileSessionManager.new(@session_path, session_id: 'clone_task_123', session_start: '20260403_170000')
+
+    events = manager.events
+
+    assert_equal 'clone_task_123', manager.session_id
+    assert_equal '20260403_170000', manager.session_start
+    assert_equal 'session', events.first[:type]
+    assert_equal 'clone_task_123', events.first[:id]
+    assert_equal '20260403_170000', events.first[:timestamp]
+  end
+
+  def test_loading_existing_session_restores_session_identity_from_file
+    File.write(@session_path, <<~JSONL)
+      {"type":"session","id":"clone_task_existing","timestamp":"20260403_170001"}
+      {"id":"m1","parent_id":"clone_task_existing","timestamp":"2026-04-03T17:00:02Z","type":"message","usage":null,"data":{"role":"user","content":[{"type":"text","text":"hello"}]}}
+    JSONL
+
+    manager = FileSessionManager.new(@session_path)
+    events = manager.events
+
+    assert_equal 2, events.length
+    assert_equal 'clone_task_existing', manager.session_id
+    assert_equal '20260403_170001', manager.session_start
+  end
+
   def test_loading_compacted_file_keeps_all_events_and_active_messages_from_last_block
     fixture_path = File.expand_path('file_session_manager_compaction_fixture.jsonl', __dir__)
     manager = FileSessionManager.new(fixture_path)
