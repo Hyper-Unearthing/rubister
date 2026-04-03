@@ -38,7 +38,7 @@ class ReadTool < LlmGateway::Tool
       data = Base64.strict_encode64(File.binread(absolute_path))
       return [
         { type: 'text', text: "Read image file [#{mime_type}]" },
-        { type: 'image', data: data, mimeType: mime_type }
+        { type: 'image', data: data, media_type: mime_type }
       ]
     end
 
