@@ -1,25 +1,52 @@
 GIT
   remote: https://github.com/Hyper-Unearthing/llm_gateway.git
-  revision: 21d19f6293a5f30b3eedd4a5dae23c57863eb669
-  branch: refactor/providers
+  revision: a9b8eff24b34c80f957fa57ebdf0d34fe52d4a6f
+  branch: refactor/major-internal-organisation
   specs:
     llm_gateway (0.3.0)
+      dry-struct
 
 GEM
   remote: https://rubygems.org/
   specs:
     base64 (0.3.0)
+    bigdecimal (4.1.1)
+    concurrent-ruby (1.3.6)
     date (3.5.1)
     debug (1.11.1)
       irb (~> 1.10)
       reline (>= 0.3.8)
     drb (2.2.3)
+    dry-core (1.2.0)
+      concurrent-ruby (~> 1.0)
+      logger
+      zeitwerk (~> 2.6)
+    dry-inflector (1.3.1)
+    dry-logic (1.6.0)
+      bigdecimal
+      concurrent-ruby (~> 1.0)
+      dry-core (~> 1.1)
+      zeitwerk (~> 2.6)
+    dry-struct (1.8.1)
+      dry-core (~> 1.1)
+      dry-types (~> 1.8, >= 1.8.2)
+      ice_nine (~> 0.11)
+      zeitwerk (~> 2.6)
+    dry-types (1.9.1)
+      bigdecimal (>= 3.0)
+      concurrent-ruby (~> 1.0)
+      dry-core (~> 1.0)
+      dry-inflector (~> 1.0)
+      dry-logic (~> 1.4)
+      zeitwerk (~> 2.6)
     erb (6.0.1)
+    ice_nine (0.11.2)
     io-console (0.8.2)
     irb (1.16.0)
       pp (>= 0.6.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
+    logger (1.7.0)
     minitest (6.0.2)
       drb (~> 2.0)
       prism (~> 1.5)
@@ -40,6 +67,7 @@ GEM
     singleton (0.2.0)
     stringio (3.2.0)
     tsort (0.2.0)
+    zeitwerk (2.7.5)
 
 PLATFORMS
   arm64-darwin-24

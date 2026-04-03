@@ -1,7 +1,7 @@
 require 'securerandom'
 require 'time'
 require_relative 'concerns/basic_compaction'
-require_relative '../llm_gateway_providers/usage_normalizer'
+require_relative '../usage_normalizer'
 
 class BaseSessionManager
   include BasicCompaction

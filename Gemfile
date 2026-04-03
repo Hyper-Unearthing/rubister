@@ -3,7 +3,7 @@ source 'https://rubygems.org'
 ruby '4.0.1'
 
 gem 'base64'
-gem 'llm_gateway', github: 'Hyper-Unearthing/llm_gateway', branch: 'refactor/providers'
+gem 'llm_gateway', github: 'Hyper-Unearthing/llm_gateway', branch: 'refactor/major-internal-organisation'
 gem 'singleton'
 
 group :development do

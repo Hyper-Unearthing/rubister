@@ -59,7 +59,7 @@ class CompactionPrompt < LlmGateway::Prompt
   end
 
   def post(&block)
-    @client.chat(
+    @client.stream(
       prompt,
       tools: [],
       system: system_prompt,
