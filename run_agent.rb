@@ -71,15 +71,6 @@ class AgentRunner
     end.parse!
   end
 
-  def sanitize_provider_config(provider_name, config)
-    if provider_name == 'anthropic_oauth_messages' && config.key?('reasoning_effort')
-      config = config.dup
-      config.delete('reasoning_effort')
-    end
-
-    config
-  end
-
   def run
     parse_args
     client = build_client
@@ -121,31 +112,7 @@ class AgentRunner
     RuntimeConfig.set(provider_name: provider, model_key: config['model_key'])
 
     begin
-      case provider
-      when 'openai_apikey_completions', 'openai_apikey_responses'
-        api_key = ENV['OPENAI_API_KEY']
-        unless api_key
-          puts 'OPENAI_API_KEY is required for OpenAI API key providers'
-          exit 1
-        end
-        config['api_key'] = api_key
-      when 'anthropic_apikey_messages'
-        if auth_credentials_available?('anthropic')
-          config['api_key'] = oauth_access_token_for('anthropic')
-        else
-          api_key = ENV['ANTHROPIC_API_KEY']
-          unless api_key
-            puts "ANTHROPIC_API_KEY required or add anthropic credentials in #{ProviderAuthHelper::AUTH_FILE}"
-            exit 1
-          end
-          config['api_key'] = api_key
-        end
-      when 'openai_oauth_codex'
-        creds = load_auth_credentials('openai')
-        config['api_key'] = oauth_access_token_for('openai')
-        config['account_id'] = creds['account_id'] if creds['account_id']
-        config['reasoning'] = 'high'
-      end
+      apply_provider_auth!(provider, config)
     rescue StandardError => e
       puts e.message
       exit 1

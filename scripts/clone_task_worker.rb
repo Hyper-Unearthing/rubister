@@ -56,15 +56,6 @@ class CloneTaskWorker
 
   private
 
-  def sanitize_provider_config(provider_name, config)
-    if provider_name == 'anthropic_oauth_messages' && config.key?('reasoning_effort')
-      config = config.dup
-      config.delete('reasoning_effort')
-    end
-
-    config
-  end
-
   def parse_args
     OptionParser.new do |opts|
       opts.banner = 'Usage: clone_task_worker.rb --task-id ID --provider KEY --model NAME'
@@ -95,27 +86,7 @@ class CloneTaskWorker
       'model_key' => resolve_model(model)
     }
 
-    case provider_name
-    when 'anthropic_apikey_messages'
-      if auth_credentials_available?('anthropic')
-        config['api_key'] = oauth_access_token_for('anthropic')
-      else
-        api_key = ENV['ANTHROPIC_API_KEY']
-        raise "ANTHROPIC_API_KEY required or add anthropic credentials in #{AUTH_FILE}" unless api_key
-        config['api_key'] = api_key
-      end
-    when 'openai_oauth_codex'
-      creds = load_auth_credentials('openai')
-      config['api_key'] = oauth_access_token_for('openai')
-      config['account_id'] = creds['account_id'] if creds['account_id']
-      config['reasoning'] = 'high'
-    when 'openai_apikey_completions', 'openai_apikey_responses'
-      api_key = ENV['OPENAI_API_KEY']
-      raise 'OPENAI_API_KEY is required for OpenAI API key providers' unless api_key
-      config['api_key'] = api_key
-    else
-      raise "Unsupported clone task provider '#{provider_name}'"
-    end
+    apply_provider_auth!(provider_name, config)
 
     client = LlmGateway.build_provider(config)
 
