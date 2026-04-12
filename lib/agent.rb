@@ -1,6 +1,7 @@
 require 'json'
 require_relative 'eventable'
 require_relative 'logging'
+require 'debug'
 
 class Agent < LlmGateway::Prompt
   include Eventable
@@ -47,10 +48,11 @@ class Agent < LlmGateway::Prompt
   end
 
   def post(&block)
-    @client.chat(
+    @client.stream(
       prompt,
       tools: tools,
       system: system_prompt,
+      reasoning: 'high',
       &block
     )
   end
@@ -62,14 +64,15 @@ class Agent < LlmGateway::Prompt
     Logging.instance.notify('agent.llm_request', { turn: @turn, message_count: transcript.length })
 
     result = post do |event|
-      case event[:type]
-      when :text_delta, :thinking_delta
-        publish(:message_delta, event)
+      case event.type
+      when :text_delta
+        publish(:message_delta, { type: 'text_delta', text: event.delta })
+      when :reasoning_delta
+        publish(:message_delta, { type: 'thinking_delta', thinking: event.delta })
       end
     end
 
-    response = result[:choices][0][:content]
-    usage = result[:usage]
+    response, usage = extract_content_and_usage(result)
 
     content_types = response.map { |m| m[:type] }.uniq
     tool_names = response.select { |m| m[:type] == 'tool_use' }.map { |m| m[:name] }
@@ -145,5 +148,15 @@ class Agent < LlmGateway::Prompt
     else
       obj
     end
+  end
+
+  def extract_content_and_usage(result)
+    [result.content.map { |block| normalize_content_block(block) }, result.usage]
+  end
+
+  def normalize_content_block(block)
+    return block.to_h if block.respond_to?(:to_h)
+
+    block
   end
 end

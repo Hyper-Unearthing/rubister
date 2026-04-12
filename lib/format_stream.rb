@@ -10,7 +10,6 @@ COLORS = {
 }.freeze
 
 class Formatter
-
   def replay_message(event)
     contents = event.dig(:content)
     role = event.dig(:role)
@@ -56,7 +55,8 @@ class Formatter
       else
         contents.each do |content|
           # skip types that were already streamed as deltas
-          next if content[:type] == 'text' || content[:type] == 'thinking'
+          next if %w[text thinking reasoning].include?(content[:type])
+
           display_llm_activity(content)
         end
       end
@@ -79,23 +79,27 @@ class Formatter
   end
 
   def display_llm_activity(hash)
-     #text delta is a key
+    # text delta is a key
     case hash.dig(:type).to_s
     when 'text'
       puts hash.dig(:text)
     when 'text_delta'
-      if @last_type == 'thinking_delta'
-        puts
-      end
+      puts if @last_type == 'thinking_delta'
       print hash.dig(:text)
+      $stdout.flush
       @last_type = 'text_delta'
     when 'thinking_delta'
       print "#{COLORS[:dim]}#{hash.dig(:thinking)}#{COLORS[:reset]}"
+      $stdout.flush
       @last_type = 'thinking_delta'
     when 'thinking'
       thinking = hash.dig(:thinking).to_s
       puts "#{COLORS[:dim]}#{thinking}#{COLORS[:reset]}" unless thinking.empty?
       @last_type = 'thinking'
+    when 'reasoning'
+      reasoning = hash.dig(:reasoning).to_s
+      puts "#{COLORS[:dim]}#{reasoning}#{COLORS[:reset]}" unless reasoning.empty?
+      @last_type = 'reasoning'
     when 'tool_use'
       @last_type = 'tool_use'
       puts

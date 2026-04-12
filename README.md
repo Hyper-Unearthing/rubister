@@ -8,18 +8,43 @@ git clone git@github.com:Hyper-Unearthing/gruv.git
 cd gruv
 ```
 
-Using OpenAI plan
+Using OpenAI OAuth Codex
 ```bash
-bundle exec ruby setup_provider.rb openai
-./gruv -p openai_oauth_responses
-```
-Using Anthropic plan
-```bash
-bundle exec ruby setup_provider.rb anthropic
-./gruv -p anthropic_oauth_messages
+ruby setup_provider.rb openai
+./gruv -p openai_oauth_codex
 ```
 
-You can set up multiple providers — they'll all be stored in `instance/providers.json`. not sure which will be called by default if you do, but you can always use -p to specify which one
+Using Anthropic provider (OAuth from auth file if present, otherwise API key env var)
+```bash
+ruby setup_provider.rb anthropic
+./gruv -p anthropic_apikey_messages
+```
+
+Using OpenAI API key providers
+```bash
+OPENAI_API_KEY=... ./gruv -p openai_apikey_completions
+OPENAI_API_KEY=... ./gruv -p openai_apikey_responses
+```
+
+`-p` maps directly to llm_gateway provider keys. Use `-m` for model.
+OAuth auth is read from `~/.config/gruv/auth.json`.
+
+Stream test provider/model combinations:
+```bash
+# openai_apikey_completions_gpt_5_1
+OPENAI_API_KEY=... ./gruv -p openai_apikey_completions -m gpt-5.1
+
+# anthropic_apikey_messages_claude_sonnet_4
+# (uses anthropic OAuth token from auth.json if present, else ANTHROPIC_API_KEY)
+ANTHROPIC_API_KEY=... ./gruv -p anthropic_apikey_messages -m claude-sonnet-4-20250514
+
+# openai_apikey_responses_gpt_5_4
+OPENAI_API_KEY=... ./gruv -p openai_apikey_responses -m gpt-5.4
+
+# openai_oauth_codex_gpt_5_4
+ruby setup_provider.rb openai
+./gruv -p openai_oauth_codex -m gpt-5.4
+```
 
 ## Logging
 
@@ -38,12 +63,7 @@ Each JSONL log entry includes:
 
 ```bash
   # Single message mode
-  ./gruv -m "whats this app"
-```
-
-```bash
-  # Single message mode
-  ./gruv -m "whats this app"
+  ./gruv --message "whats this app"
 ```
 
 ```bash
