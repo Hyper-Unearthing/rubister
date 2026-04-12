@@ -1,15 +1,10 @@
-require_relative '../tools'
-require_relative 'gruv_agent'
+require_relative 'base_gruv_agent'
 
 # CloneAgent is a restricted variant of GruvAgent used for background clone tasks.
 # Results are reported back to the main gruv via the inbox, not via send tools.
-class CloneAgent < GruvAgent
-  # Excluded from clones:
-  #   - SpawnCloneTaskTool  prevents recursive clone spawning
-  #   - SendMessageTool     clones must not send messages directly to users
-  #   - SendPhotoTool       same reason
-  #   - SendVoiceTool       same reason
-  #   - SendDocumentTool    same reason
+class CloneAgent < BaseGruvAgent
+  SYSTEM_PROMPT_PATH = File.join(__dir__, 'prompt', 'clone-system-prompt.md')
+
   EXCLUDED_TOOLS = [
     SpawnCloneTaskTool,
     SendMessageTool,
@@ -18,5 +13,7 @@ class CloneAgent < GruvAgent
     SendDocumentTool,
   ].freeze
 
-  TOOLS = (GruvAgent::TOOLS - EXCLUDED_TOOLS).freeze
+  TOOLS = ALL_TOOLS
+    .reject { |klass| EXCLUDED_TOOLS.include?(klass) }
+    .freeze
 end

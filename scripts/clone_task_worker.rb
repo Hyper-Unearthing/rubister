@@ -36,23 +36,22 @@ class CloneTaskWorker
     attach_task_log_writer(task)
     Logging.instance.notify('clone_task.start', { task_id: task.id, pid: Process.pid })
 
+    ENV['CLONE_TASK_ID'] = task.id.to_s
+
     agent_session = build_agent_session(task)
     agent_session.run(task.message)
 
-    result_message = extract_last_assistant_text(agent_session.agent.transcript)
+    task.reload
+    unless task.state == 'completed'
+      raise 'Clone finished without calling report_clone_result'
+    end
 
-    task.update!({
-      state: 'completed',
-      result_message: result_message,
-      error_message: nil,
-      completed_at: Time.now.utc.iso8601
-    })
-
-    notify_inbox(task: task, success: true, payload: result_message)
     Logging.instance.notify('clone_task.complete', { task_id: task.id })
   rescue => e
     handle_failure(e)
     raise
+  ensure
+    ENV.delete('CLONE_TASK_ID')
   end
 
   private
@@ -135,23 +134,11 @@ class CloneTaskWorker
   end
 
 
-  def extract_last_assistant_text(transcript)
-    assistant_message = transcript.reverse.find { |entry| entry[:role] == 'assistant' }
-    return '' unless assistant_message
-
-    text_blocks = assistant_message[:content].select { |block| block[:type] == 'text' }
-    text_blocks.map { |block| block[:text] }.join("\n").strip
-  end
-
-  def notify_inbox(task:, success:, payload:)
+  def notify_failure_inbox(task:, payload:)
     origin = Message.find(task.origin_inbox_message_id)
 
     inbox = Inbox.new(DatabaseConfig.db_path)
-    state = success ? 'completed' : 'failed'
-    prefix = "Response from clone task #{task.id}:"
-    text = success ?
-      "#{prefix} #{payload}" :
-      "#{prefix} Task failed — #{payload}"
+    text = "Response from clone task #{task.id}: Task failed — #{payload}"
 
     inbox.insert_message(
       platform: origin.platform,
@@ -162,7 +149,7 @@ class CloneTaskWorker
         task_id: task.id,
         origin_inbox_message_id: task.origin_inbox_message_id,
         pid: task.pid,
-        state: state,
+        state: 'failed',
         session_path: task.session_path,
         log_path: task.log_path
       }
@@ -181,7 +168,7 @@ class CloneTaskWorker
       completed_at: Time.now.utc.iso8601
     })
 
-    notify_inbox(task: task, success: false, payload: error.message)
+    notify_failure_inbox(task: task, payload: error.message)
     Logging.instance.notify('clone_task.failed', {
       task_id: task.id,
       error: error.message,
