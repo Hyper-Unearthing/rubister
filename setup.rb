@@ -3,12 +3,11 @@
 
 # Unified setup wizard for gruv.
 # Run multiple times safely — existing values are shown as defaults and
-# OAuth tokens for the same provider are overwritten while model/reasoning
-# settings are preserved unless you explicitly change them.
+# OAuth tokens for the same provider are overwritten while other settings
+# are preserved unless you explicitly change them.
 
 require 'json'
 require 'fileutils'
-require 'net/http'
 require 'uri'
 
 # --instance-path <dir> lets gruvctl call setup.rb directly on the host,
@@ -31,9 +30,6 @@ AUTH_PATH = File.expand_path(ENV.fetch('GRUV_AUTH_FILE', '~/.config/gruv/auth.js
 ANTHROPIC_REGISTRY_KEY = 'anthropic'
 OPENAI_REGISTRY_KEY    = 'openai'
 
-MODELS_DEV_URL = 'https://models.dev/api.json'
-
-REASONING_OPTIONS = %w[low medium high].freeze
 
 # ─── TTY helpers ─────────────────────────────────────────────────────────────
 
@@ -88,98 +84,6 @@ end
 def save_json(path, data)
   FileUtils.mkdir_p(File.dirname(path))
   File.write(path, JSON.pretty_generate(data) + "\n")
-end
-
-# ─── models.dev integration ───────────────────────────────────────────────────
-
-def fetch_models_from_dev(provider_id)
-  uri  = URI(MODELS_DEV_URL)
-  http = Net::HTTP.new(uri.host, uri.port)
-  http.use_ssl     = true
-  http.open_timeout = 5
-  http.read_timeout = 10
-
-  response = http.get(uri.path)
-  return nil unless response.is_a?(Net::HTTPSuccess)
-
-  data     = JSON.parse(response.body)
-  provider = data[provider_id]
-  return nil unless provider
-
-  models = provider['models'] || {}
-
-  # Keep only chat-capable models (tool_call or reasoning, text output), sorted by name
-  relevant = models.values.select do |m|
-    m['modalities']&.dig('output')&.include?('text') &&
-      (m['tool_call'] || m['reasoning'])
-  end
-
-  relevant.sort_by { |m| m['name'] || m['id'] }
-rescue StandardError
-  nil
-end
-
-def pick_model(provider_id, provider_label, current_raw_id, storage_prefix: '')
-  tty.puts
-  tty.puts "  Fetching models from models.dev..."
-
-  models = fetch_models_from_dev(provider_id)
-
-  current_display = current_raw_id # the ID without any storage prefix
-
-  if models.nil? || models.empty?
-    tty.puts "  (Could not fetch models — enter model ID manually)"
-    tty.puts
-    raw = ask("Model ID", default: current_display, required: true)
-    return "#{storage_prefix}#{raw}"
-  end
-
-  tty.puts
-  tty.puts "  Available #{provider_label} models:"
-  tty.puts
-
-  col_id   = models.map { |m| m['id'].length }.max
-  col_name = models.map { |m| (m['name'] || '').length }.max
-
-  current_index = nil
-  models.each_with_index do |m, i|
-    tags = []
-    tags << 'reasoning' if m['reasoning']
-    tags << 'tools'     if m['tool_call']
-    tag_str = tags.empty? ? '' : "[#{tags.join(', ')}]"
-
-    marker = m['id'] == current_display ? ' ◀' : '  '
-    current_index = i + 1 if m['id'] == current_display
-
-    tty.puts format("  %3d)%s %-#{col_id}s  %-#{col_name}s  %s",
-                    i + 1, marker, m['id'], m['name'] || '', tag_str)
-  end
-
-  tty.puts
-  tty.puts "  Enter a number to select, or type a custom model ID."
-
-  default_prompt = current_index ? current_index.to_s : current_display
-
-  loop do
-    tty.print("  Model [#{default_prompt}]: ")
-    input = tty.gets&.strip
-
-    input = default_prompt if input.nil? || input.empty?
-
-    if input =~ /^\d+$/
-      idx = input.to_i - 1
-      if idx >= 0 && idx < models.length
-        chosen = models[idx]['id']
-        return "#{storage_prefix}#{chosen}"
-      else
-        tty.puts "  ✗ Invalid number. Enter 1–#{models.length} or a model ID."
-      end
-    else
-      # Treat as custom model ID (strip storage_prefix if user accidentally included it)
-      raw = input.sub(/^#{Regexp.escape(storage_prefix)}/, '')
-      return "#{storage_prefix}#{raw}"
-    end
-  end
 end
 
 # ─── Menu ─────────────────────────────────────────────────────────────────────
@@ -241,12 +145,6 @@ def setup_anthropic(providers)
 
   existing = providers[ANTHROPIC_REGISTRY_KEY] || {}
 
-  # Strip claude_code/ prefix for display; re-add when storing
-  current_stored = existing['model_key'] || 'claude_code/claude-sonnet-4-5'
-  current_raw    = current_stored.sub(/^claude_code\//, '')
-
-  model_key = pick_model('anthropic', 'Anthropic', current_raw, storage_prefix: 'claude_code/')
-
   run_oauth = if existing.key?('access_token')
     tty.puts
     tty.puts "  Existing tokens found (expires_at: #{existing['expires_at']})."
@@ -271,8 +169,7 @@ def setup_anthropic(providers)
     flow.exchange_code(auth_code, result[:code_verifier])
   end
 
-  entry = existing.merge('model_key' => model_key)
-  entry.delete('reasoning_effort') if entry.key?('reasoning_effort')
+  entry = existing.dup
 
   if tokens
     entry.merge!(
@@ -285,7 +182,7 @@ def setup_anthropic(providers)
 
   providers[ANTHROPIC_REGISTRY_KEY] = entry
   tty.puts
-  tty.puts "  ✓ Anthropic saved (model: #{model_key})"
+  tty.puts '  ✓ Anthropic saved'
 end
 
 def setup_openai(providers)
@@ -295,20 +192,7 @@ def setup_openai(providers)
 
   existing = providers[OPENAI_REGISTRY_KEY] || {}
 
-  current_model = existing['model_key'] || 'gpt-5.1-codex-mini'
-
-  model_key = pick_model('openai', 'OpenAI', current_model)
-
-  tty.puts
-  tty.puts "  Reasoning effort (#{REASONING_OPTIONS.join(' / ')}, or blank for none):"
-  current_reasoning = existing['reasoning_effort']
-  reasoning = ask('  Reasoning effort', default: current_reasoning)
-  reasoning = nil if reasoning.to_s.strip.empty?
-
-  if reasoning && !REASONING_OPTIONS.include?(reasoning)
-    tty.puts "  ✗ Invalid value '#{reasoning}' — keeping existing (#{current_reasoning.inspect})."
-    reasoning = current_reasoning
-  end
+  reasoning = 'high'
 
   run_oauth = if existing.key?('access_token')
     tty.puts
@@ -320,9 +204,8 @@ def setup_openai(providers)
 
   tokens = run_oauth ? LlmGateway::Clients::OpenAi::OAuthFlow.new.login : nil
 
-  entry = existing.merge('model_key' => model_key)
-  entry['reasoning_effort'] = reasoning if reasoning
-  entry.delete('reasoning_effort') if reasoning.nil? && entry.key?('reasoning_effort')
+  entry = existing.dup
+  entry['reasoning'] = reasoning
 
   if tokens
     entry.merge!(
@@ -335,7 +218,7 @@ def setup_openai(providers)
 
   providers[OPENAI_REGISTRY_KEY] = entry
   tty.puts
-  tty.puts "  ✓ OpenAI saved (model: #{model_key}#{reasoning ? ", reasoning: #{reasoning}" : ''})"
+  tty.puts "  ✓ OpenAI saved#{reasoning ? ", reasoning: #{reasoning}" : ''}"
 end
 
 # ─── Chat integration setup ───────────────────────────────────────────────────

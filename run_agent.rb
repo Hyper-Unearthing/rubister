@@ -144,6 +144,7 @@ class AgentRunner
         creds = load_auth_credentials('openai')
         config['api_key'] = oauth_access_token_for('openai')
         config['account_id'] = creds['account_id'] if creds['account_id']
+        config['reasoning'] = 'high'
       end
     rescue StandardError => e
       puts e.message

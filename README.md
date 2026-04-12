@@ -54,8 +54,7 @@ bundle exec ruby setup.rb
 ```
 
 The wizard lets you pick which things to configure:
-- **Anthropic / OpenAI** — OAuth flow; re-running the same provider refreshes tokens while
-  preserving model and reasoning settings unless you change them
+- **Anthropic / OpenAI** — OAuth flow; re-running the same provider refreshes tokens
 - **Telegram** — bot token
 - **Discord** — bot token, app credentials, install URL generation
 - **AssemblyAI** — transcription API key
