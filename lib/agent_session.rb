@@ -1,5 +1,6 @@
 require_relative 'compaction_prompt'
 require_relative 'logging'
+require_relative 'agent_logger'
 
 class AgentSession
   attr_reader :agent, :session_manager
@@ -9,23 +10,23 @@ class AgentSession
     @session_manager = session_manager
 
     @agent.subscribe(@session_manager)
+    @agent.subscribe(AgentLogger.new)
     @agent.transcript = model_input_messages
   end
 
   def run(message)
-    Logging.instance.notify('agent_session.message', { input: message })
+    @session_manager.push_message(
+      role: 'user',
+      content: [{ type: 'text', text: message }]
+    )
+
     @agent.run(message)
     compact if @session_manager.total_tokens > 20_000
   end
 
   def continue
-    Logging.instance.notify('agent_session.continue', {})
     @agent.continue
-    compact if @session_manager.total_tokens > 20000
-  end
-
-  def raw_events
-    @session_manager.events
+    compact if @session_manager.total_tokens > 20_000
   end
 
   def compact

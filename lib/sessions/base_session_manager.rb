@@ -14,16 +14,18 @@ class BaseSessionManager
     name = event[:name]
 
     case name
-    when :user_input, :message
-      push_entry(
-        type: 'message',
-        usage: message_usage(payload),
-        data: {
-          role: payload[:role],
-          content: payload[:content]
-        }
-      )
+    when :message
+      push_message(payload)
     end
+  end
+
+  def push_message(payload)
+    normalized_payload = payload.merge(usage: message_usage(payload))
+
+    push_entry(
+      type: 'message',
+      data: normalized_payload
+    )
   end
 
   def push_entry(entry)
@@ -41,11 +43,11 @@ class BaseSessionManager
   def active_messages
     compaction_event = last_compaction_entry
     messages = if compaction_event
-      compaction_index = events.index(compaction_event)
-      events[(compaction_index + 1)..].select { |event| event[:type] == 'message' }
-    else
-      message_events
-    end
+                 compaction_index = events.index(compaction_event)
+                 events[(compaction_index + 1)..].select { |event| event[:type] == 'message' }
+               else
+                 message_events
+               end
 
     messages.map { |event| event[:data] }
   end
@@ -67,7 +69,8 @@ class BaseSessionManager
   end
 
   def total_tokens
-    message_events.reverse.find { |entry| entry.dig(:usage, :total_tokens) }&.dig(:usage, :total_tokens).to_i
+    entry = message_events.reverse.find { |event| event.dig(:data, :usage, :total_tokens) }
+    entry&.dig(:data, :usage, :total_tokens) || 0
   end
 
   private

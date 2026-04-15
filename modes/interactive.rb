@@ -1,85 +1,53 @@
-require_relative '../lib/logging'
-require_relative '../lib/log_file_writer'
-require_relative '../lib/instance_file_scope'
-require_relative '../lib/format_stream'
-require_relative '../lib/agent'
-require_relative '../lib/agent_session'
-require_relative '../lib/coding_agent'
-require_relative '../lib/sessions/file_session_manager'
+require_relative 'message'
+require 'reline'
 
-class InteractiveRunner
-  def initialize(client, session_file)
-    @agent_session = build_session(client, session_file)
-    @formatter = Formatter.new
-  end
-
+class InteractiveRunner < MessageMode
   def run
-    log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('interactive_logs.jsonl'), process_name: 'interactive')
-    Logging.instance.attach(log_file_writer)
-    @agent_session.agent.subscribe(@formatter)
+    with_readline do
+      puts "Interactive mode (type 'exit' or 'quit' to end, Ctrl+D to send EOF)"
+      puts "Type 'compaction' to compact old conversation context."
+      puts '---'
 
-    rl = begin
-      require 'readline'
-      true
-    rescue LoadError
-      false
-    end
+      replay_transcript
 
-    tty_in = nil
-    tty_out = nil
+      loop do
+        input = Reline.readline('> ', true)
+        break if input.nil? # Handle EOF (Ctrl+D)
 
-    # Point Readline at /dev/tty so bracketed paste works even when stdout is piped
-    if rl
-      tty_in = File.open('/dev/tty', 'r')
-      tty_out = File.open('/dev/tty', 'w')
-      Readline.input = tty_in
-      Readline.output = tty_out
-    end
+        input = input.strip
 
-    puts "Interactive mode (type 'exit' or 'quit' to end, Ctrl+D to send EOF)"
-    puts "Type 'compaction' to compact old conversation context."
-    puts '---'
+        if input.casecmp('compaction').zero?
+          @agent_session.compact
+          next
+        elsif input.empty?
+          next
+        elsif input.match?(/^(exit|quit)$/i)
+          break
+        end
 
-    replay_transcript
-
-    loop do
-      $stdout.flush
-
-      input = if rl
-        Readline.readline('> ', true)
-      else
-        print '> '
-        t = File.open('/dev/tty', 'r')
-        line = t.gets
-        t.close
-        line&.chomp
+        super(input)
       end
 
-      # Handle EOF (Ctrl+D) or exit commands
-      break if input.nil? || input.strip.match?(/^(exit|quit)$/i)
-
-      message = input.strip
-      next if message.empty?
-
-      if message.casecmp('compaction').zero?
-        @agent_session.compact
-        next
-      end
-
-      @agent_session.run(message)
+      puts 'Goodbye!'
     end
-
-    puts 'Goodbye!'
-  ensure
-    tty_in&.close
-    tty_out&.close
   end
 
   private
 
-  def build_session(client, session_file)
-    agent = CodingAgent.new(client)
-    AgentSession.new(agent, FileSessionManager.new(session_file))
+  def with_readline
+    tty_in = nil
+    tty_out = nil
+
+    # Point Reline at /dev/tty so bracketed paste works even when stdout is piped
+    tty_in = File.open('/dev/tty', 'r')
+    tty_out = File.open('/dev/tty', 'w')
+    Reline.input = tty_in
+    Reline.output = tty_out
+
+    yield
+  ensure
+    tty_in&.close
+    tty_out&.close
   end
 
   def replay_transcript
@@ -91,9 +59,7 @@ class InteractiveRunner
     end
 
     last = messages.last
-    last_role = if last.is_a?(Hash)
-                  last[:role] || last['role']
-                end
-    puts if last_role.to_s == 'assistant'
+    last_role = last[:role] if last.is_a?(Hash)
+    puts if ['assistant', :assistant].include?(last_role)
   end
 end

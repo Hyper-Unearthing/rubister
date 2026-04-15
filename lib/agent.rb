@@ -1,6 +1,5 @@
 require 'json'
 require_relative 'eventable'
-require_relative 'logging'
 require 'debug'
 
 class Agent < LlmGateway::Prompt
@@ -16,12 +15,7 @@ class Agent < LlmGateway::Prompt
   end
 
   def prompt
-    cloned_history = Marshal.load(Marshal.dump(transcript))
-    if (last_content = cloned_history.last&.dig(:content)) && last_content.is_a?(Array) && last_content.last
-      last_content.last[:cache_control] = { type: 'ephemeral' }
-    end
-
-    cloned_history.map { |message| deep_symbolize_keys(message) }
+    transcript
   end
 
   def self.tools
@@ -37,9 +31,8 @@ class Agent < LlmGateway::Prompt
   end
 
   def run(user_input)
-    publish_user_input([{ type: 'text', text: user_input }])
-    response = send_and_process
-    publish(:done, response)
+    append_user_message([user_input])
+    continue
   end
 
   def continue
@@ -47,116 +40,71 @@ class Agent < LlmGateway::Prompt
     publish(:done, response)
   end
 
-  def post(&block)
+  def post
     @client.stream(
       prompt,
       tools: tools,
       system: system_prompt,
-      reasoning: 'high',
-      &block
-    )
+      reasoning: 'high'
+    ) do |event|
+      publish(event.type, event.to_h, stream_event_class: event.class.name)
+    end
   end
 
   private
 
   def send_and_process
-    @turn = (@turn || 0) + 1
-    Logging.instance.notify('agent.llm_request', { turn: @turn, message_count: transcript.length })
+    result = post
 
-    result = post do |event|
-      case event.type
-      when :text_delta
-        publish(:message_delta, { type: 'text_delta', text: event.delta })
-      when :reasoning_delta
-        publish(:message_delta, { type: 'thinking_delta', thinking: event.delta })
-      end
-    end
+    assistant_message = result.to_h
+    publish(:message, assistant_message)
+    transcript.push(assistant_message)
 
-    response, usage = extract_content_and_usage(result)
-
-    content_types = response.map { |m| m[:type] }.uniq
-    tool_names = response.select { |m| m[:type] == 'tool_use' }.map { |m| m[:name] }
-    Logging.instance.notify('agent.llm_response', { turn: @turn, content_types:, tool_names:, usage: })
-
-    publish_assistant_message(response, usage)
-    tool_uses = response.select { |message| message[:type] == 'tool_use' }
+    tool_uses = result.content.select { |message| message.type == 'tool_use' }
 
     if tool_uses.any?
       tool_results = tool_uses.map do |message|
-        result = handle_tool_use(message)
-
-        {
-          type: 'tool_result',
-          tool_use_id: message[:id],
-          content: result
-        }
+        execute_tool(message)
       end
-      publish_user_message(tool_results)
+      publish_tool_result(tool_results)
       send_and_process
     end
 
-    response
-  end
-
-  def publish_assistant_message(content, usage = nil)
-    assistant_message = { role: 'assistant', content: content }
-    assistant_message[:usage] = usage if usage
-    publish(:message, assistant_message)
-    transcript.push(assistant_message)
     assistant_message
   end
 
-  def publish_user_input(content)
+  def append_user_message(content)
     user_message = { role: 'user', content: content }
-    publish(:user_input, user_message)
     transcript.push(user_message)
     user_message
   end
 
-  def publish_user_message(content)
+  def publish_tool_result(content)
     user_message = { role: 'user', content: content }
     publish(:message, user_message)
     transcript.push(user_message)
     user_message
   end
 
-  def handle_tool_use(message)
-    tool_name = message[:name]
-    tool_input = message[:input]
-    Logging.instance.notify('agent.tool_call', { turn: @turn, tool: tool_name, input: tool_input })
-
+  def execute_tool(tool_request)
+    tool_name = tool_request.name
+    tool_input = tool_request.input
     tool_class = self.class.find_tool(tool_name)
-    result = if tool_class
-      tool_class.new.execute(tool_input)
-    else
-      "Unknown tool: #{tool_name}"
+
+    result = begin
+      if tool_class
+        tool_class.new.execute(tool_input)
+      else
+        "Unknown tool: #{tool_name}"
+      end
+    rescue StandardError => e
+      "Error executing tool: #{e.message}"
     end
 
-    Logging.instance.notify('agent.tool_result', { turn: @turn, tool: tool_name, result: result[0, 500] })
-    result
-  rescue StandardError => e
-    Logging.instance.notify('agent.tool_result', { turn: @turn, tool: message[:name], error: e.message })
-    "Error executing tool: #{e.message}"
-  end
-
-  def deep_symbolize_keys(obj)
-    case obj
-    when Hash
-      obj.each_with_object({}) { |(key, value), result| result[key.to_sym] = deep_symbolize_keys(value) }
-    when Array
-      obj.map { |entry| deep_symbolize_keys(entry) }
-    else
-      obj
-    end
-  end
-
-  def extract_content_and_usage(result)
-    [result.content.map { |block| normalize_content_block(block) }, result.usage]
-  end
-
-  def normalize_content_block(block)
-    return block.to_h if block.respond_to?(:to_h)
-
-    block
+    {
+      type: 'tool_result',
+      tool_use_id: tool_request.id,
+      content: result
+    }
   end
 end

@@ -34,8 +34,10 @@ class Formatter
     name = event.dig(:name)
     payload = event.dig(:payload)
 
-    # In interactive mode, user input is already visible on the prompt line.
-    return if name == :user_input
+    if stream_event?(name)
+      display_stream_event(name, payload || {})
+      return
+    end
 
     if name == :done
       # Ensure the newline is emitted and flushed immediately at stream end.
@@ -66,6 +68,30 @@ class Formatter
     end
   rescue StandardError => e
     puts "#{COLORS[:red]}[formatter error] #{e.message}#{COLORS[:reset]}"
+  end
+
+  def stream_event?(name)
+    %i[
+      message_start message_delta message_end
+      text_start text_delta text_end
+      tool_start tool_delta tool_end
+      reasoning_start reasoning_delta reasoning_end
+      thinking_start thinking_delta thinking_end
+    ].include?(name)
+  end
+
+  def display_stream_event(name, payload)
+    case name
+    when :text_delta
+      puts if @last_type == 'thinking_delta'
+      print payload[:delta]
+      $stdout.flush
+      @last_type = 'text_delta'
+    when :reasoning_delta, :thinking_delta
+      print "#{COLORS[:dim]}#{payload[:delta]}#{COLORS[:reset]}"
+      $stdout.flush
+      @last_type = 'thinking_delta'
+    end
   end
 
   def display_user_message(contents)

@@ -85,16 +85,17 @@ module ProviderAuthHelper
       else
         api_key = ENV['ANTHROPIC_API_KEY']
         raise "ANTHROPIC_API_KEY required or add anthropic credentials in #{AUTH_FILE}" unless api_key
+
         config['api_key'] = api_key
       end
     when 'openai_oauth_codex'
       creds = load_auth_credentials('openai')
       config['api_key'] = oauth_access_token_for('openai')
       config['account_id'] = creds['account_id'] if creds['account_id']
-      config['reasoning'] = 'high'
     when 'openai_apikey_completions', 'openai_apikey_responses'
       api_key = ENV['OPENAI_API_KEY']
       raise 'OPENAI_API_KEY is required for OpenAI API key providers' unless api_key
+
       config['api_key'] = api_key
     else
       raise "Unsupported provider '#{provider_name}'"

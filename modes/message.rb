@@ -8,18 +8,18 @@ require_relative '../lib/coding_agent'
 require_relative '../lib/sessions/file_session_manager'
 
 class MessageMode
-  def initialize(client, session_file, message)
+  def initialize(client, session_file)
     @agent_session = build_session(client, session_file)
     @formatter = Formatter.new
-    @message = message
-  end
-
-  def run
-    log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('message_logs.jsonl'), process_name: 'message_mode')
-    Logging.instance.attach(log_file_writer)
     @agent_session.agent.subscribe(@formatter)
 
-    @agent_session.run(@message)
+    log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('message_logs.jsonl'),
+                                        process_name: self.class.name.gsub(/([a-z0-9])([A-Z])/, '\\1_\\2').downcase)
+    Logging.instance.attach(log_file_writer)
+  end
+
+  def run(message)
+    @agent_session.run(message)
   end
 
   private

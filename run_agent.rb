@@ -76,7 +76,7 @@ class AgentRunner
     client = build_client
 
     if @options[:message]
-      MessageMode.new(client, @options[:session_file], @options[:message]).run
+      MessageMode.new(client, @options[:session_file]).run(@options[:message])
     elsif @options[:daemon]
       daemon = DaemonMode.new(client, INBOX_DB_PATH, poll_interval: @options[:poll_interval])
       daemon.start
@@ -104,21 +104,21 @@ class AgentRunner
       exit 1
     end
 
-    config = {
+    agent_config = {
       'provider' => provider,
       'model_key' => resolve_model(provider)
     }
 
-    RuntimeConfig.set(provider_name: provider, model_key: config['model_key'])
+    RuntimeConfig.set(provider_name: provider, model_key: agent_config['model_key'])
 
     begin
-      apply_provider_auth!(provider, config)
+      apply_provider_auth!(provider, agent_config)
     rescue StandardError => e
       puts e.message
       exit 1
     end
-
-    LlmGateway.build_provider(config)
+    debugger
+    LlmGateway.build_provider(agent_config)
   end
 
   def resolve_model(_provider)
