@@ -1,11 +1,7 @@
 require_relative 'logging'
 
 class AgentLogger
-  def on_notify(event)
-    return unless event[:name] == :message
-
-    message = event[:payload]
-
+  def log_message(message)
     if message[:role] == 'assistant'
       @turn = (@turn || 0) + 1
       log_assistant_message(message)

@@ -11,7 +11,6 @@ class MessageMode
   def initialize(client, session_file)
     @agent_session = build_session(client, session_file)
     @formatter = Formatter.new
-    @agent_session.agent.subscribe(@formatter)
 
     log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('message_logs.jsonl'),
                                         process_name: self.class.name.gsub(/([a-z0-9])([A-Z])/, '\\1_\\2').downcase)
@@ -19,7 +18,7 @@ class MessageMode
   end
 
   def run(message)
-    @agent_session.run(message)
+    @agent_session.run(message) { |event| @formatter.render_agent_event(event) }
   end
 
   private

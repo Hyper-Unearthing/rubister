@@ -1,10 +1,7 @@
 require 'json'
-require_relative 'eventable'
 require 'debug'
 
 class Agent < LlmGateway::Prompt
-  include Eventable
-
   attr_reader :client
   attr_accessor :transcript
 
@@ -30,46 +27,60 @@ class Agent < LlmGateway::Prompt
     self.class.tools.map(&:definition)
   end
 
-  def run(user_input)
+  def run(user_input, &block)
     append_user_message([user_input])
-    continue
+    continue(&block)
   end
 
-  def continue
-    response = send_and_process
-    publish(:done, response)
+  def continue(&block)
+    messages = []
+
+    emit(Event::Base.new(type: :agent_start), &block)
+    send_and_process(messages:, &block)
   end
 
-  def post
+  def post(&block)
     @client.stream(
       prompt,
       tools: tools,
       system: system_prompt,
-      reasoning: 'high'
-    ) do |event|
-      publish(event.type, event.to_h, stream_event_class: event.class.name)
-    end
+      reasoning: 'high',
+      &block
+    )
   end
 
   private
 
-  def send_and_process
-    result = post
-
-    assistant_message = result.to_h
-    publish(:message, assistant_message)
-    transcript.push(assistant_message)
-
-    tool_uses = result.content.select { |message| message.type == 'tool_use' }
-
-    if tool_uses.any?
-      tool_results = tool_uses.map do |message|
-        execute_tool(message)
-      end
-      publish_tool_result(tool_results)
-      send_and_process
+  def send_and_process(messages:, &block)
+    result = post do |event|
+      emit(Event::MessageUpdate.new(stream_event: event), &block)
     end
 
+    emit(Event::Base.new(type: :turn_start), &block)
+    emit(Event::Base.new(type: :message_start), &block)
+
+    assistant_message = result
+    transcript << assistant_message.to_h
+    messages << assistant_message
+
+    emit(Event::MessageEnd.new(message: assistant_message), &block)
+
+    tool_results = result.content.select { |message| message.type == 'tool_use' }.map do |message|
+      parameters = message.to_h
+      emit(Event::ToolExecutionStart.new(parameters: parameters), &block)
+      tool_result = execute_tool(message)
+      emit(Event::ToolExecutionEnd.new(parameters: parameters, result: tool_result.to_h), &block)
+      transcript << tool_result.to_h
+      messages.concat([tool_result])
+      tool_result
+    end
+
+    turn_end_event = Event::TurnEnd.new(message: assistant_message, tool_results: tool_results)
+    emit(turn_end_event, &block)
+
+    return send_and_process(messages:, &block) if tool_results.length.positive?
+
+    emit(Event::AgentEnd.new(messages: messages), &block)
     assistant_message
   end
 
@@ -79,11 +90,10 @@ class Agent < LlmGateway::Prompt
     user_message
   end
 
-  def publish_tool_result(content)
-    user_message = { role: 'user', content: content }
-    publish(:message, user_message)
-    transcript.push(user_message)
-    user_message
+  def emit(event, &block)
+    return unless block
+
+    block.call(event)
   end
 
   def execute_tool(tool_request)
@@ -101,10 +111,12 @@ class Agent < LlmGateway::Prompt
       "Error executing tool: #{e.message}"
     end
 
-    {
+    Event::ToolCallResult.new(
       type: 'tool_result',
       tool_use_id: tool_request.id,
       content: result
-    }
+    )
   end
 end
+
+require_relative 'agent_events'

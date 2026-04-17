@@ -117,7 +117,6 @@ class AgentRunner
       puts e.message
       exit 1
     end
-    debugger
     LlmGateway.build_provider(agent_config)
   end
 

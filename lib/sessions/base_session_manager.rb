@@ -9,16 +9,6 @@ class BaseSessionManager
   attr_reader :session_id, :session_start
   attr_accessor :model
 
-  def on_notify(event)
-    payload = event[:payload]
-    name = event[:name]
-
-    case name
-    when :message
-      push_message(payload)
-    end
-  end
-
   def push_message(payload)
     normalized_payload = payload.merge(usage: message_usage(payload))
 

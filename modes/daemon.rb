@@ -103,7 +103,7 @@ class DaemonMode
       agent_input = build_agent_input(msg)
       session = session_for(msg[:channel_id])
 
-      session.run(agent_input)
+      session.run(agent_input) { |event| @formatter.render_agent_event(event) }
       @inbox.mark_processed(msg[:id])
 
       Logging.instance.notify('daemon.message.complete', {
@@ -147,7 +147,6 @@ class DaemonMode
     @client.prompt_cache_key = channel_id if @client.respond_to?(:prompt_cache_key=)
     @sessions[channel_id] ||= begin
       agent = GruvAgent.new(@client)
-      agent.subscribe(@formatter)
       AgentSession.new(agent, SqlSessionManager.new(channel_id: channel_id))
     end
   end
