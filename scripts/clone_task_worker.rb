@@ -7,7 +7,7 @@ require_relative '../lib/database_config'
 require_relative '../lib/clone_task'
 require_relative '../lib/inbox'
 require_relative '../lib/clone_agent'
-require_relative '../lib/logging'
+require_relative '../lib/events'
 require_relative '../lib/log_file_writer'
 require_relative '../lib/instance_file_scope'
 require_relative '../lib/sessions/file_session_manager'
@@ -34,19 +34,22 @@ class CloneTaskWorker
     task.update!({ pid: Process.pid, state: 'processing', started_at: Time.now.utc.iso8601 })
 
     attach_task_log_writer(task)
-    Logging.instance.notify('clone_task.start', { task_id: task.id, pid: Process.pid })
+    Events.set_context(process: 'clone_task_worker', role: 'clone_task_worker', pid: Process.pid)
+    Events.notify('clone_task.start', { task_id: task.id, pid: Process.pid })
 
     ENV['CLONE_TASK_ID'] = task.id.to_s
 
     agent_session = build_agent_session(task)
-    agent_session.run(task.message)
+    Events.tagged(task_id: task.id) do
+      agent_session.run(task.message)
+    end
 
     task.reload
     unless task.state == 'completed'
       raise 'Clone finished without calling report_clone_result'
     end
 
-    Logging.instance.notify('clone_task.complete', { task_id: task.id })
+    Events.notify('clone_task.complete', { task_id: task.id })
   rescue => e
     handle_failure(e)
     raise
@@ -72,7 +75,7 @@ class CloneTaskWorker
 
   def attach_task_log_writer(task)
     FileUtils.mkdir_p(File.dirname(task.log_path))
-    Logging.instance.attach(LogFileWriter.new(file_path: task.log_path))
+    Events.subscribe(JsonlEventSubscriber.new(file_path: task.log_path))
   end
 
   def build_agent_session(task)
@@ -141,7 +144,7 @@ class CloneTaskWorker
     })
 
     notify_failure_inbox(task: task, payload: error.message)
-    Logging.instance.notify('clone_task.failed', {
+    Events.notify('clone_task.failed', {
       task_id: task.id,
       error: error.message,
       backtrace: error.backtrace

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-class ConsoleLogWriter
-  def on_notify(event)
+class ConsoleEventSubscriber
+  def emit(event)
     return unless event.is_a?(Hash)
 
     name = event[:name].to_s

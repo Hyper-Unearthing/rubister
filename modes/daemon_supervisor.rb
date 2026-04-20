@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'rbconfig'
-require_relative '../lib/logging'
+require_relative '../lib/events'
 require_relative '../lib/console_log_writer'
 require_relative '../lib/log_file_writer'
 require_relative '../lib/instance_file_scope'
@@ -19,21 +19,22 @@ class DaemonSupervisorMode
   end
 
   def start
-    console_log_writer = ConsoleLogWriter.new
-    log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'daemon_supervisor')
-    Logging.instance.attach(console_log_writer)
-    Logging.instance.attach(log_file_writer)
+    console_log_writer = ConsoleEventSubscriber.new
+    log_file_writer = JsonlEventSubscriber.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'daemon_supervisor')
+    Events.subscribe(console_log_writer)
+    Events.subscribe(log_file_writer)
+    Events.set_context(process: 'daemon_supervisor', role: 'daemon_supervisor', pid: Process.pid)
 
-    Logging.instance.notify('daemon.supervisor.migrations.start', {})
+    Events.notify('daemon.supervisor.migrations.start', {})
     version = DatabaseMigrations.migrate!
-    Logging.instance.notify('daemon.supervisor.migrations.complete', {
+    Events.notify('daemon.supervisor.migrations.complete', {
       version: version,
     })
 
     @running = true
     spawn_children
 
-    Logging.instance.notify('daemon.supervisor.start', {
+    Events.notify('daemon.supervisor.start', {
       children: @children,
       poll_interval: @poll_interval,
     })
@@ -67,7 +68,7 @@ class DaemonSupervisorMode
       end
     end
 
-    Logging.instance.notify('daemon.supervisor.stop', {})
+    Events.notify('daemon.supervisor.stop', {})
   end
 
   private
@@ -100,13 +101,13 @@ class DaemonSupervisorMode
   def request_stop(signal)
     if @running
       @running = false
-      Logging.instance.notify('daemon.supervisor.stop.requested', { signal: signal })
+      Events.notify('daemon.supervisor.stop.requested', { signal: signal })
       return
     end
 
     return unless %w[INT TERM].include?(signal)
 
-    Logging.instance.notify('daemon.supervisor.stop.force_requested', { signal: signal })
+    Events.notify('daemon.supervisor.stop.force_requested', { signal: signal })
     force_shutdown_children
   end
 
@@ -114,7 +115,7 @@ class DaemonSupervisorMode
     return unless @running
 
     @reload_requested = true
-    Logging.instance.notify('daemon.supervisor.reload.requested', {})
+    Events.notify('daemon.supervisor.reload.requested', {})
   end
 
   def reload_daemon_worker
@@ -123,14 +124,14 @@ class DaemonSupervisorMode
     unless old_pid
       new_pid = spawn_daemon_worker
       @children[:daemon_worker] = new_pid
-      Logging.instance.notify('daemon.supervisor.reload.worker_started', {
+      Events.notify('daemon.supervisor.reload.worker_started', {
         old_pid: nil,
         new_pid: new_pid,
       })
       return
     end
 
-    Logging.instance.notify('daemon.supervisor.reload.worker_stopping', { pid: old_pid })
+    Events.notify('daemon.supervisor.reload.worker_stopping', { pid: old_pid })
 
     begin
       Process.kill('TERM', old_pid)
@@ -173,7 +174,7 @@ class DaemonSupervisorMode
     new_pid = spawn_daemon_worker
     @children[:daemon_worker] = new_pid
 
-    Logging.instance.notify('daemon.supervisor.reload.worker_started', {
+    Events.notify('daemon.supervisor.reload.worker_started', {
       old_pid: old_pid,
       new_pid: new_pid,
     })
@@ -197,7 +198,7 @@ class DaemonSupervisorMode
     role = @children.key(pid)
     return unless role
 
-    Logging.instance.notify('daemon.supervisor.child.exit', {
+    Events.notify('daemon.supervisor.child.exit', {
       role: role,
       pid: pid,
       exitstatus: status.exitstatus,

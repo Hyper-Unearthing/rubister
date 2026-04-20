@@ -3,7 +3,7 @@
 require 'net/http'
 require 'uri'
 require_relative '../../inbox'
-require_relative '../../logging'
+require_relative '../../events'
 require_relative '../../console_log_writer'
 require_relative '../../log_file_writer'
 require_relative '../../instance_file_scope'
@@ -33,15 +33,16 @@ module CommunicationPlatform
       end
 
       def start
-        console_log_writer = ConsoleLogWriter.new
-        log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'discord_writer')
-        Logging.instance.attach(console_log_writer)
-        Logging.instance.attach(log_file_writer)
+        console_log_writer = ConsoleEventSubscriber.new
+        log_file_writer = JsonlEventSubscriber.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'discord_writer')
+        Events.subscribe(console_log_writer)
+        Events.subscribe(log_file_writer)
+        Events.set_context(process: 'discord_writer', role: 'discord_writer', pid: Process.pid)
 
         @running = true
         missing_token_logged = false
 
-        Logging.instance.notify('discord_writer.start', { retry_delay: @retry_delay })
+        Events.notify('discord_writer.start', { retry_delay: @retry_delay })
 
         trap('INT') { request_stop('INT') }
         trap('TERM') { request_stop('TERM') }
@@ -50,7 +51,7 @@ module CommunicationPlatform
           begin
             if missing_token?
               unless missing_token_logged
-                Logging.instance.notify('discord_writer.disabled', {
+                Events.notify('discord_writer.disabled', {
                   reason: 'missing_bot_token',
                   config_path: AppConfig.config_path,
                 })
@@ -64,13 +65,13 @@ module CommunicationPlatform
             missing_token_logged = false
             connect
           rescue LoadError => e
-            Logging.instance.notify('discord_writer.error', {
+            Events.notify('discord_writer.error', {
               error: e.message,
               hint: 'Install async gems: bundle install',
             })
             sleep @retry_delay if @running
           rescue => e
-            Logging.instance.notify('discord_writer.error', {
+            Events.notify('discord_writer.error', {
               error: e.message,
               backtrace: e.backtrace,
             })
@@ -79,11 +80,11 @@ module CommunicationPlatform
         end
 
         if @stop_signal
-          Logging.instance.notify('discord_writer.stop.requested', { signal: @stop_signal })
+          Events.notify('discord_writer.stop.requested', { signal: @stop_signal })
           stop
         end
 
-        Logging.instance.notify('discord_writer.stop', {})
+        Events.notify('discord_writer.stop', {})
       end
 
       private
@@ -95,18 +96,18 @@ module CommunicationPlatform
 
       def ready(data)
         @bot_user_id = data.dig(:user, :id)
-        Logging.instance.notify('discord_writer.ready', {
+        Events.notify('discord_writer.ready', {
           session_id: data[:session_id],
           bot_user_id: @bot_user_id,
         })
       end
 
       def message_create(data)
-        Logging.instance.notify('discord_writer.message.recieved', data)
+        Events.notify('discord_writer.message.recieved', data)
         author = data[:author]
         return if @bot_user_id && author[:id] == @bot_user_id
 
-        Logging.instance.notify('discord_writer.message.extracting_content', data)
+        Events.notify('discord_writer.message.extracting_content', data)
         content = extract_message_content(data)
         return unless content
 
@@ -116,7 +117,7 @@ module CommunicationPlatform
           message_id: data[:id]
         )
 
-        Logging.instance.notify('discord_writer.message.content_extracted', content)
+        Events.notify('discord_writer.message.content_extracted', content)
         scope = data[:guild_id].nil? ? 'dm' : 'guild_channel'
 
         @inbox.insert_message(
@@ -144,7 +145,7 @@ module CommunicationPlatform
           }
         )
 
-        Logging.instance.notify('discord_writer.message.inserted', {
+        Events.notify('discord_writer.message.inserted', {
           channel_id: data[:channel_id],
           message_id: data[:id],
           author_id: author[:id],
@@ -152,7 +153,7 @@ module CommunicationPlatform
           attachment_downloaded_count: attachment_downloads.length,
         })
       rescue => e
-        Logging.instance.notify('discord_gateway.error', {
+        Events.notify('discord_gateway.error', {
           message: e.message,
           backtrace: e.backtrace,
         })
@@ -198,7 +199,7 @@ module CommunicationPlatform
               path: saved_path,
             }
           rescue => e
-            Logging.instance.notify('discord_writer.attachment_download_error', {
+            Events.notify('discord_writer.attachment_download_error', {
               channel_id: channel_id,
               message_id: message_id,
               attachment_id: attachment[:id],
@@ -231,19 +232,19 @@ module CommunicationPlatform
       end
 
       def info(message)
-        Logging.instance.notify('discord_gateway.info', { message: message })
+        Events.notify('discord_gateway.info', { message: message })
       end
 
       def warn(message)
-        Logging.instance.notify('discord_gateway.warn', { message: message })
+        Events.notify('discord_gateway.warn', { message: message })
       end
 
       def error(message)
-        Logging.instance.notify('discord_gateway.error', { message: message })
+        Events.notify('discord_gateway.error', { message: message })
       end
 
       def debug(message)
-        Logging.instance.notify('discord_gateway.debug', { message: message })
+        Events.debug('discord_gateway.debug', { message: message })
       end
 
       public :info, :warn, :error, :debug

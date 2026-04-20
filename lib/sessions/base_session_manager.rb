@@ -28,6 +28,7 @@ class BaseSessionManager
     }
 
     persist_entry(new_entry)
+    new_entry
   end
 
   def active_messages

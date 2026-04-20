@@ -2,7 +2,7 @@
 
 require 'yaml'
 require_relative '../lib/inbox'
-require_relative '../lib/logging'
+require_relative '../lib/events'
 require_relative '../lib/console_log_writer'
 require_relative '../lib/log_file_writer'
 require_relative '../lib/instance_file_scope'
@@ -25,30 +25,31 @@ class DaemonMode
   end
 
   def start
-    console_log_writer = ConsoleLogWriter.new
-    log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'gruv')
-    Logging.instance.attach(console_log_writer)
-    Logging.instance.attach(log_file_writer)
+    console_log_writer = ConsoleEventSubscriber.new
+    log_file_writer = JsonlEventSubscriber.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'gruv')
+    Events.subscribe(console_log_writer)
+    Events.subscribe(log_file_writer)
+    Events.set_context(process: 'daemon', role: ENV['GRUV_ROLE'] || 'daemon_worker', pid: Process.pid)
 
     @running = true
-    Logging.instance.notify('daemon.start', {
+    Events.notify('daemon.start', {
       poll_interval: @poll_interval,
     })
 
     cleaned = @inbox.cleanup_processing_on_startup
-    Logging.instance.notify('daemon.startup.cleanup_processing', {
+    Events.notify('daemon.startup.cleanup_processing', {
       rows_failed: cleaned,
     })
 
     trap('INT') do
-      Logging.instance.notify('daemon.stop.requested', {
+      Events.notify('daemon.stop.requested', {
         signal: 'INT',
       })
       @running = false
     end
 
     trap('TERM') do
-      Logging.instance.notify('daemon.stop.requested', {
+      Events.notify('daemon.stop.requested', {
         signal: 'TERM',
       })
       @running = false
@@ -58,7 +59,7 @@ class DaemonMode
       begin
         process_next_message
       rescue => e
-        Logging.instance.notify('daemon.error', {
+        Events.notify('daemon.error', {
           error: e.message,
           backtrace: e.backtrace,
         })
@@ -67,7 +68,7 @@ class DaemonMode
       sleep @poll_interval if @running
     end
 
-    Logging.instance.notify('daemon.stop', {})
+    Events.notify('daemon.stop', {})
   end
 
   private
@@ -76,7 +77,7 @@ class DaemonMode
     pending_count = @inbox.pending_count
     msg = @inbox.next_pending
 
-    Logging.instance.notify('daemon.poll', {
+    Events.debug('daemon.poll', {
       pending_count: pending_count,
       found: !msg.nil?,
       next_message_id: msg&.dig(:id)
@@ -84,7 +85,7 @@ class DaemonMode
 
     return unless msg
 
-    Logging.instance.notify('daemon.message.received', {
+    Events.notify('daemon.message.received', {
       id: msg[:id],
       platform: msg[:platform],
       channel_id: msg[:channel_id],
@@ -93,53 +94,55 @@ class DaemonMode
       message_text: msg[:message],
     })
 
-    Logging.instance.notify('daemon.message.start', {
+    Events.notify('daemon.message.start', {
       id: msg[:id],
       platform: msg[:platform],
       channel_id: msg[:channel_id]
     })
 
-    begin
-      agent_input = build_agent_input(msg)
-      session = session_for(msg[:channel_id])
+    Events.tagged(platform: msg[:platform], channel_id: msg[:channel_id]) do
+      begin
+        agent_input = build_agent_input(msg)
+        session = session_for(msg[:channel_id])
 
-      session.run(agent_input) { |event| @formatter.render_agent_event(event) }
-      @inbox.mark_processed(msg[:id])
+        session.run(agent_input) { |event| @formatter.render_agent_event(event) }
+        @inbox.mark_processed(msg[:id])
 
-      Logging.instance.notify('daemon.message.complete', {
-        id: msg[:id],
-      })
-    rescue LlmGateway::Errors::BadRequestError => e
-      Logging.instance.notify('daemon.message.error', {
-        id: msg[:id],
-        error: e.message,
-        backtrace: e.backtrace,
-      })
-      notify_processing_error_to_user(msg)
-      @inbox.mark_failed(msg[:id], error: e.message)
-    rescue LlmGateway::Errors::RateLimitError => e
-      Logging.instance.notify('daemon.message.rate_limited', {
-        id: msg[:id],
-        platform: msg[:platform],
-        channel_id: msg[:channel_id],
-        error: e.message,
-      })
-      notify_rate_limit_to_user(msg)
+        Events.notify('daemon.message.complete', {
+          id: msg[:id],
+        })
+      rescue LlmGateway::Errors::BadRequestError => e
+        Events.notify('daemon.message.error', {
+          id: msg[:id],
+          error: e.message,
+          backtrace: e.backtrace,
+        })
+        notify_processing_error_to_user(msg)
+        @inbox.mark_failed(msg[:id], error: e.message)
+      rescue LlmGateway::Errors::RateLimitError => e
+        Events.notify('daemon.message.rate_limited', {
+          id: msg[:id],
+          platform: msg[:platform],
+          channel_id: msg[:channel_id],
+          error: e.message,
+        })
+        notify_rate_limit_to_user(msg)
 
-      Logging.instance.notify('daemon.message.error', {
-        id: msg[:id],
-        error: e.message,
-        backtrace: e.backtrace,
-      })
-      @inbox.mark_failed(msg[:id], error: e.message)
-    rescue => e
-      Logging.instance.notify('daemon.message.error', {
-        id: msg[:id],
-        error: e.message,
-        backtrace: e.backtrace,
-      })
-      notify_processing_error_to_user(msg)
-      @inbox.mark_failed(msg[:id], error: e.message)
+        Events.notify('daemon.message.error', {
+          id: msg[:id],
+          error: e.message,
+          backtrace: e.backtrace,
+        })
+        @inbox.mark_failed(msg[:id], error: e.message)
+      rescue => e
+        Events.notify('daemon.message.error', {
+          id: msg[:id],
+          error: e.message,
+          backtrace: e.backtrace,
+        })
+        notify_processing_error_to_user(msg)
+        @inbox.mark_failed(msg[:id], error: e.message)
+      end
     end
   end
 
@@ -170,7 +173,7 @@ class DaemonMode
   def notify_user_about_failure(msg, event_prefix:, message:)
     sender = WriterRegistry.for_platform(msg[:platform])
     unless sender
-      Logging.instance.notify("#{event_prefix}.skipped", {
+      Events.notify("#{event_prefix}.skipped", {
         id: msg[:id],
         platform: msg[:platform],
         reason: 'sender_not_configured'
@@ -184,13 +187,13 @@ class DaemonMode
       reply_to_message_id: msg[:provider_message_id]
     )
 
-    Logging.instance.notify("#{event_prefix}.sent", {
+    Events.notify("#{event_prefix}.sent", {
       id: msg[:id],
       platform: msg[:platform],
       channel_id: msg[:channel_id]
     })
   rescue => e
-    Logging.instance.notify("#{event_prefix}.error", {
+    Events.notify("#{event_prefix}.error", {
       id: msg[:id],
       platform: msg[:platform],
       channel_id: msg[:channel_id],

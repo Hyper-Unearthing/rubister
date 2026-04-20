@@ -5,7 +5,7 @@ require 'uri'
 require 'json'
 require 'time'
 require_relative '../../inbox'
-require_relative '../../logging'
+require_relative '../../events'
 require_relative '../../log_file_writer'
 require_relative '../../instance_file_scope'
 require_relative '../../app_config'
@@ -41,11 +41,12 @@ module CommunicationPlatform
       end
 
       def start
-        log_file_writer = LogFileWriter.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'telegram_writer')
-        Logging.instance.attach(log_file_writer)
+        log_file_writer = JsonlEventSubscriber.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'telegram_writer')
+        Events.subscribe(log_file_writer)
+        Events.set_context(process: 'telegram_writer', role: 'telegram_writer', pid: Process.pid)
 
         @running = true
-        Logging.instance.notify('telegram_writer.start', {
+        Events.notify('telegram_writer.start', {
           poll_timeout: @poll_timeout,
           retry_delay: @retry_delay,
           offset: @offset,
@@ -64,7 +65,7 @@ module CommunicationPlatform
             @bot_token ||= resolve_token
             unless @bot_token
               unless missing_token_logged
-                Logging.instance.notify('telegram_writer.disabled', {
+                Events.notify('telegram_writer.disabled', {
                   reason: 'missing_bot_token',
                   config_path: AppConfig.config_path,
                 })
@@ -77,7 +78,7 @@ module CommunicationPlatform
             missing_token_logged = false
             poll_once
           rescue => e
-            Logging.instance.notify('telegram_writer.error', {
+            Events.notify('telegram_writer.error', {
               error: e.message,
               backtrace: e.backtrace,
             })
@@ -86,13 +87,13 @@ module CommunicationPlatform
         end
 
         flush_ready_media_groups!(force: true)
-        Logging.instance.notify('telegram_writer.stop', {})
+        Events.notify('telegram_writer.stop', {})
       end
 
       private
 
       def stop(signal)
-        Logging.instance.notify('telegram_writer.stop.requested', { signal: signal })
+        Events.notify('telegram_writer.stop.requested', { signal: signal })
         @running = false
       end
 
@@ -141,7 +142,7 @@ module CommunicationPlatform
 
         flush_ready_media_groups!
 
-        Logging.instance.notify('telegram_writer.poll', {
+        Events.debug('telegram_writer.poll', {
           updates_count: updates.count,
           next_offset: @offset,
           pending_media_group_count: @pending_media_groups.length,
@@ -175,7 +176,7 @@ module CommunicationPlatform
 
         content = extract_message_content(message, has_photo: photo_file_ids.any?, voice_file_id: voice_file_id)
         unless content
-          Logging.instance.notify('telegram_writer.message.skipped', {
+          Events.notify('telegram_writer.message.skipped', {
             update_id: update['update_id'],
             message_id: message['message_id'],
             chat_id: message.dig('chat', 'id').to_s,
@@ -218,7 +219,7 @@ module CommunicationPlatform
           }
         )
 
-        Logging.instance.notify('telegram_writer.message.inserted', {
+        Events.notify('telegram_writer.message.inserted', {
           chat_id: chat_id,
           update_id: update['update_id'],
           message_id: message['message_id'],
@@ -252,7 +253,7 @@ module CommunicationPlatform
         group['entries'] = sort_media_group_entries(group['entries'])
         group['last_seen_at'] = timestamp
 
-        Logging.instance.notify('telegram_writer.media_group.buffered', {
+        Events.notify('telegram_writer.media_group.buffered', {
           chat_id: chat_id,
           media_group_id: media_group_id,
           message_id: message['message_id'],
@@ -281,7 +282,7 @@ module CommunicationPlatform
         chat_id = group['chat_id']
 
         unless payload
-          Logging.instance.notify('telegram_writer.message.skipped', {
+          Events.notify('telegram_writer.message.skipped', {
             chat_id: chat_id,
             media_group_id: media_group_id,
             reason: 'unsupported_or_empty_media_group',
@@ -292,7 +293,7 @@ module CommunicationPlatform
 
         @inbox.insert_message(**payload)
 
-        Logging.instance.notify('telegram_writer.message.inserted', {
+        Events.notify('telegram_writer.message.inserted', {
           chat_id: chat_id,
           update_id: payload[:provider_update_id],
           message_id: payload.dig(:metadata, :message_id),
@@ -308,7 +309,7 @@ module CommunicationPlatform
         @pending_media_groups.delete(key)
         true
       rescue => e
-        Logging.instance.notify('telegram_writer.media_group.flush_error', {
+        Events.notify('telegram_writer.media_group.flush_error', {
           chat_id: chat_id,
           media_group_id: media_group_id,
           error: e.message,
@@ -544,7 +545,7 @@ module CommunicationPlatform
           )
           [{ type: 'image', file_id: file_id, path: saved_path }]
         rescue => e
-          Logging.instance.notify('telegram_writer.photo_download_error', {
+          Events.notify('telegram_writer.photo_download_error', {
             file_id: file_id,
             error: e.message,
           })
@@ -597,7 +598,7 @@ module CommunicationPlatform
               path: saved_path,
             }
           rescue => e
-            Logging.instance.notify('telegram_writer.attachment_download_error', {
+            Events.notify('telegram_writer.attachment_download_error', {
               file_id: file_id,
               attachment_type: ref[:type],
               error: e.message,
@@ -686,7 +687,7 @@ module CommunicationPlatform
           pending_media_groups: @pending_media_groups
         }))
       rescue StandardError => e
-        Logging.instance.notify('telegram_writer.state_write_error', {
+        Events.notify('telegram_writer.state_write_error', {
           error: e.message,
         })
       end

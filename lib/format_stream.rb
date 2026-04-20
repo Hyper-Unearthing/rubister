@@ -38,7 +38,7 @@ class Formatter
     puts "#{COLORS[:red]}[formatter error] #{e.message}#{COLORS[:reset]}"
   end
 
-  def on_notify(event)
+  def emit(event)
     name = event.dig(:name)
     payload = event.dig(:payload)
 
