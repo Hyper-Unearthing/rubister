@@ -48,11 +48,14 @@ class AgentSession
       assistant_message = event.message.to_h
       @session_manager.push_message(assistant_message)
     when Agent::Event::TurnEnd
-      tool_result_message = {
-        role: 'user',
-        content: event.tool_results.flat_map { |tool_result| tool_result.to_h[:content] }
-      }
-      @session_manager.push_message(tool_result_message)
+      tool_result_content = event.tool_results.flat_map { |tool_result| tool_result.to_h[:content] }
+      if tool_result_content.any?
+        tool_result_message = {
+          role: 'user',
+          content: tool_result_content
+        }
+        @session_manager.push_message(tool_result_message)
+      end
     end
 
     unless event.type == :message_update
