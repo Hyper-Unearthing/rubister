@@ -10,7 +10,9 @@ class AgentSession
     @agent = agent
     @session_manager = session_manager
 
-    @agent.transcript = model_input_messages
+    agent.transcript = model_input_messages
+    agent.cache_key = session_manager.session_id
+    agent.cache_retention = 'long'
   end
 
   def run(message, &event_handler)

@@ -3,7 +3,7 @@ require 'debug'
 
 class Agent < LlmGateway::Prompt
   attr_reader :client
-  attr_accessor :transcript
+  attr_accessor :transcript, :cache_key, :cache_retention
 
   def initialize(client, transcript: [])
     super(client.client.model_key)
@@ -40,11 +40,18 @@ class Agent < LlmGateway::Prompt
   end
 
   def post(&block)
-    @client.stream(
-      prompt,
+    stream_options = {
       tools: tools,
       system: system_prompt,
-      reasoning: 'high',
+      reasoning: 'high'
+    }
+
+    stream_options[:cache_key] = cache_key if cache_key
+    stream_options[:cache_retention] = cache_retention if cache_retention
+
+    @client.stream(
+      prompt,
+      **stream_options,
       &block
     )
   end
