@@ -9,6 +9,7 @@ gem 'activerecord'
 gem 'sqlite3'
 gem 'async'
 gem 'async-http'
+gem 'webrick'
 gem 'async-websocket'
 
 group :development do
