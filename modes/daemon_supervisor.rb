@@ -75,6 +75,7 @@ class DaemonSupervisorMode
 
   def spawn_children
     @children[:daemon_worker] = spawn_daemon_worker
+    @children[:session_html_server] = spawn_session_html_server
 
     WriterRegistry.roles.each do |role|
       @children[role.to_sym] = spawn_writer(role)
@@ -89,6 +90,11 @@ class DaemonSupervisorMode
   def spawn_writer(role)
     command = [ruby_executable, gruv_path]
     Process.spawn({ 'GRUV_ROLE' => role }, *command)
+  end
+
+  def spawn_session_html_server
+    command = [ruby_executable, serve_session_html_path]
+    Process.spawn({ 'GRUV_ROLE' => 'session_html_server' }, *command)
   end
 
   def provider_args
@@ -119,64 +125,55 @@ class DaemonSupervisorMode
   end
 
   def reload_daemon_worker
-    old_pid = @children[:daemon_worker]
+    old_children = @children.dup
 
-    unless old_pid
-      new_pid = spawn_daemon_worker
-      @children[:daemon_worker] = new_pid
-      Events.notify('daemon.supervisor.reload.worker_started', {
-        old_pid: nil,
-        new_pid: new_pid,
-      })
-      return
-    end
+    Events.notify('daemon.supervisor.reload.all_children.stopping', {
+      roles: old_children.keys,
+      pids: old_children.values,
+    })
 
-    Events.notify('daemon.supervisor.reload.worker_stopping', { pid: old_pid })
-
-    begin
-      Process.kill('TERM', old_pid)
-    rescue Errno::ESRCH
-      nil
+    old_children.each_value do |pid|
+      begin
+        Process.kill('TERM', pid)
+      rescue Errno::ESRCH
+        nil
+      end
     end
 
     deadline = Time.now + 300
     loop do
-      break unless @children[:daemon_worker] == old_pid
+      break if old_children.values.none? { |pid| @children.value?(pid) }
       break if Time.now >= deadline
 
       sleep 0.1
-      waited = begin
-        Process.wait2(old_pid, Process::WNOHANG)
-      rescue Errno::ECHILD
-        nil
-      end
+      waited = Process.wait2(-1, Process::WNOHANG)
       next unless waited
 
       pid, status = waited
       reap_child(pid, status)
     end
 
-    if @children[:daemon_worker] == old_pid
+    old_children.each_value do |pid|
+      next unless @children.value?(pid)
+
       begin
-        Process.kill('KILL', old_pid)
+        Process.kill('KILL', pid)
       rescue Errno::ESRCH
         nil
       end
 
       begin
-        pid, status = Process.wait2(old_pid)
-        reap_child(pid, status)
+        reaped_pid, status = Process.wait2(pid)
+        reap_child(reaped_pid, status)
       rescue Errno::ECHILD
         nil
       end
     end
 
-    new_pid = spawn_daemon_worker
-    @children[:daemon_worker] = new_pid
+    spawn_children
 
-    Events.notify('daemon.supervisor.reload.worker_started', {
-      old_pid: old_pid,
-      new_pid: new_pid,
+    Events.notify('daemon.supervisor.reload.all_children.started', {
+      children: @children,
     })
   end
 
@@ -219,5 +216,9 @@ class DaemonSupervisorMode
 
   def gruv_path
     File.expand_path('../gruv', __dir__)
+  end
+
+  def serve_session_html_path
+    File.expand_path('../scripts/serve_session_html.rb', __dir__)
   end
 end
