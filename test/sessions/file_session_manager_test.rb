@@ -3,8 +3,8 @@ require 'tmpdir'
 require 'fileutils'
 require 'json'
 require 'llm_gateway'
-require_relative '../../lib/sessions/file_session_manager'
-require_relative '../../lib/compaction_prompt'
+require_relative '../../agents/sessions/file_session_manager'
+require_relative '../../agents/sessions/compaction_prompt'
 require_relative '../support/session_event_simulation_helper'
 
 class FileSessionManagerNormalizePathTest < Minitest::Test

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'active_record'
-require_relative 'instance_file_scope'
+require_relative '../../config/instance_file_scope'
 
 module DatabaseConfig
   module_function

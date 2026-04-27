@@ -4,7 +4,7 @@ require 'fileutils'
 require 'securerandom'
 require 'base64'
 require 'stringio'
-require_relative 'instance_file_scope'
+require_relative '../../config/instance_file_scope'
 
 module MediaStorage
   IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].freeze

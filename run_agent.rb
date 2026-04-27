@@ -2,15 +2,21 @@
 
 require 'optparse'
 require 'llm_gateway'
-require_relative 'lib/agent'
-require_relative 'lib/coding_agent'
-require_relative 'lib/events'
-require_relative 'lib/instance_file_scope'
+require_relative 'lib/agents/agent'
+require_relative 'lib/agents/coding_agent'
+require_relative 'lib/logging/events'
+require_relative 'config/instance_file_scope'
 require_relative 'modes/interactive'
 require_relative 'modes/message'
-require_relative 'lib/runtime_config'
+require_relative 'config/runtime_config'
 require_relative 'lib/provider_auth_helper'
 require_relative 'modes/daemon'
+require_relative 'lib/writer_registry'
+
+Dir.glob(File.join(__dir__, 'modes', '*_writer.rb')).sort.each do |path|
+  require path
+end
+
 # Enable immediate output flushing for real-time streaming
 $stdout.sync = true
 

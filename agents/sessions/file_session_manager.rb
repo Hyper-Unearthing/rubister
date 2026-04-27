@@ -4,7 +4,7 @@ require 'time'
 require 'fileutils'
 require_relative 'base_session_manager'
 require_relative 'concerns/basic_compaction'
-require_relative '../instance_file_scope'
+require_relative '../../config/instance_file_scope'
 
 class FileSessionManager < BaseSessionManager
   attr_reader :session_path, :file_name

@@ -1,11 +1,11 @@
-require_relative '../lib/events'
-require_relative '../lib/log_file_writer'
-require_relative '../lib/instance_file_scope'
+require_relative '../lib/logging/events'
+require_relative '../lib/logging/log_file_writer'
+require_relative '../config/instance_file_scope'
 require_relative '../lib/format_stream'
-require_relative '../lib/agent'
-require_relative '../lib/agent_session'
-require_relative '../lib/coding_agent'
-require_relative '../lib/sessions/file_session_manager'
+require_relative '../lib/agents/agent'
+require_relative '../agents/sessions/agent_session'
+require_relative '../lib/agents/coding_agent'
+require_relative '../agents/sessions/file_session_manager'
 
 class MessageMode
   def initialize(client, session_file)

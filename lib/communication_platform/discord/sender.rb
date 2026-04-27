@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'client'
-require_relative '../../media_storage'
+require_relative '../media_storage'
 require_relative '../concerns/sender'
 
 module CommunicationPlatform

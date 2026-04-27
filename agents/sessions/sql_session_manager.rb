@@ -1,7 +1,7 @@
 require 'json'
 require 'active_record'
 require_relative 'base_session_manager'
-require_relative '../database_config'
+require_relative '../../lib/db/database_config'
 
 class SqlSessionManager < BaseSessionManager
   SESSION_START = 'continuous'.freeze

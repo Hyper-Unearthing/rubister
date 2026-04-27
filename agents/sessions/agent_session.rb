@@ -1,6 +1,6 @@
 require_relative 'compaction_prompt'
-require_relative 'events'
-require_relative 'agent_events'
+require_relative '../../lib/logging/events'
+require_relative '../../lib/agents/agent_events'
 
 class AgentSession
 

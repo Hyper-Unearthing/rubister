@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
 require 'yaml'
-require_relative '../lib/inbox'
-require_relative '../lib/events'
-require_relative '../lib/console_log_writer'
-require_relative '../lib/log_file_writer'
-require_relative '../lib/instance_file_scope'
+require_relative '../lib/db/inbox'
+require_relative '../lib/logging/events'
+require_relative '../lib/logging/console_log_writer'
+require_relative '../lib/logging/log_file_writer'
+require_relative '../config/instance_file_scope'
 require_relative '../lib/format_stream'
-require_relative '../lib/agent'
-require_relative '../lib/gruv_agent'
-require_relative '../lib/agent_session'
-require_relative '../lib/sessions/sql_session_manager'
+require_relative '../lib/agents/agent'
+require_relative '../lib/agents/gruv_agent'
+require_relative '../agents/sessions/agent_session'
+require_relative '../agents/sessions/sql_session_manager'
 require_relative '../lib/writer_registry'
 
 # Daemon mode for processing inbox messages

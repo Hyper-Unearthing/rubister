@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require 'rbconfig'
-require_relative '../lib/events'
-require_relative '../lib/console_log_writer'
-require_relative '../lib/log_file_writer'
-require_relative '../lib/instance_file_scope'
+require_relative '../lib/logging/events'
+require_relative '../lib/logging/console_log_writer'
+require_relative '../lib/logging/log_file_writer'
+require_relative '../config/instance_file_scope'
 require_relative '../lib/writer_registry'
-require_relative '../lib/database_migrations'
+require_relative '../lib/db/database_migrations'
 
 class DaemonSupervisorMode
   def initialize(poll_interval:, provider: nil, model: nil)

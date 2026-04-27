@@ -1,7 +1,7 @@
 require 'json'
 require 'time'
 require 'fileutils'
-require_relative 'instance_file_scope'
+require_relative '../../config/instance_file_scope'
 
 class JsonlEventSubscriber
   def initialize(file_path: nil, process_name: nil)

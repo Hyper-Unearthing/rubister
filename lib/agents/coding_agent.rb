@@ -1,4 +1,4 @@
-require_relative '../tools'
+require_relative 'tools'
 require_relative 'agent'
 
 class CodingAgent < Agent

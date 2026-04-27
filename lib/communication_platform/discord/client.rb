@@ -3,8 +3,8 @@
 require 'net/http'
 require 'json'
 require 'stringio'
-require_relative '../../app_config'
-require_relative '../../media_storage'
+require_relative '../../../config/app_config'
+require_relative '../media_storage'
 require_relative '../../errors'
 
 module CommunicationPlatform

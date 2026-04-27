@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative '../app_config'
-require_relative '../clients/assemblyai_client'
+require_relative '../../../config/app_config'
+require_relative '../../clients/assemblyai_client'
 
 class TranscribeVoiceTool < LlmGateway::Tool
   name 'transcribe_voice'

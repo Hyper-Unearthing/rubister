@@ -6,7 +6,7 @@ require 'base64'
 require 'time'
 require 'sqlite3'
 require 'llm_gateway'
-require_relative '../tools'
+require_relative '../lib/agents/tools'
 
 ROOT = File.expand_path('..', __dir__)
 INSTANCE_DIR = File.join(ROOT, 'instance')

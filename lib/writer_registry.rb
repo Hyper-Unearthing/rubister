@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'app_config'
+require_relative '../config/app_config'
 
 module WriterRegistry
   module_function

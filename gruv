@@ -10,7 +10,7 @@ unless ENV['GRUV_BUNDLER_ACTIVE'] == '1'
   exec({ 'GRUV_BUNDLER_ACTIVE' => '1' }, 'bundle', 'exec', RbConfig.ruby, __FILE__, *ARGV)
 end
 
-require_relative 'lib/instance_file_scope'
+require_relative 'config/instance_file_scope'
 require_relative 'lib/writer_registry'
 require_relative 'modes/daemon_supervisor'
 

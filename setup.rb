@@ -20,7 +20,7 @@ INSTANCE_DIR =
     abort "  ✗ directory does not exist: #{dir}" unless Dir.exist?(dir)
     dir
   else
-    require_relative 'lib/instance_file_scope'
+    require_relative 'config/instance_file_scope'
     InstanceFileScope.instance_dir
   end
 

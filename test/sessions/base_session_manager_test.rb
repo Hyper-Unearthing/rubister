@@ -1,5 +1,5 @@
 require 'minitest/autorun'
-require_relative '../../lib/sessions/base_session_manager'
+require_relative '../../agents/sessions/base_session_manager'
 require_relative '../support/session_event_simulation_helper'
 
 class BaseSessionManagerTest < Minitest::Test

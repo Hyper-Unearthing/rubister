@@ -2,13 +2,13 @@
 
 require 'net/http'
 require 'uri'
-require_relative '../../inbox'
-require_relative '../../events'
-require_relative '../../console_log_writer'
-require_relative '../../log_file_writer'
-require_relative '../../instance_file_scope'
-require_relative '../../app_config'
-require_relative '../../media_storage'
+require_relative '../../db/inbox'
+require_relative '../../logging/events'
+require_relative '../../logging/console_log_writer'
+require_relative '../../logging/log_file_writer'
+require_relative '../../../config/instance_file_scope'
+require_relative '../../../config/app_config'
+require_relative '../media_storage'
 require_relative 'gateway/client'
 require_relative 'sender'
 require_relative '../concerns/poller'
@@ -117,7 +117,7 @@ module CommunicationPlatform
           message_id: data[:id]
         )
 
-        Events.notify('discord_writer.message.content_extracted', content)
+        Events.notify('discord_writer.message.content_extracted', { content: content })
         scope = data[:guild_id].nil? ? 'dm' : 'guild_channel'
 
         @inbox.insert_message(

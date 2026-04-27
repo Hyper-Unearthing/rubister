@@ -1,4 +1,6 @@
-require_relative '../tools'
+require 'fileutils'
+
+require_relative 'tools'
 require_relative 'agent'
 
 class BaseGruvAgent < Agent
@@ -56,6 +58,7 @@ class BaseGruvAgent < Agent
     RUNTIME_PROMPT_DEFAULTS.each do |path, default_content|
       next if File.exist?(path)
 
+      FileUtils.mkdir_p(File.dirname(path))
       File.write(path, default_content)
     end
   end
