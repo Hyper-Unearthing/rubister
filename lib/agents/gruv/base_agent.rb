@@ -44,14 +44,12 @@ class BaseGruvAgent < CodingAgent
   def system_prompt
     ensure_runtime_prompt_docs!
 
-    content = [
+    [
       File.read(FEATURES_BUILT_PATH),
       File.read(SOUL_PATH),
       File.read(LEARNT_BEHAVIOURS_PATH),
       File.read(self.class::SYSTEM_PROMPT_PATH)
     ].join("\n\n")
-
-    [{ role: 'system', content: content, cache_control: { 'type': 'ephemeral' } }]
   end
 
   def ensure_runtime_prompt_docs!
