@@ -1,0 +1,224 @@
+# frozen_string_literal: true
+
+require 'rbconfig'
+require_relative '../lib/logging/events'
+require_relative '../lib/logging/console_log_writer'
+require_relative '../lib/logging/log_file_writer'
+require_relative '../config/instance_file_scope'
+require_relative '../lib/writer_registry'
+require_relative '../lib/db/database_migrations'
+
+class DaemonSupervisorMode
+  def initialize(poll_interval:, provider: nil, model: nil)
+    @poll_interval = poll_interval
+    @provider = provider
+    @model = model
+    @children = {}
+    @running = false
+    @reload_requested = false
+  end
+
+  def start
+    console_log_writer = ConsoleEventSubscriber.new
+    log_file_writer = JsonlEventSubscriber.new(file_path: InstanceFileScope.path('daemon_logs.jsonl'), process_name: 'daemon_supervisor')
+    Events.subscribe(console_log_writer)
+    Events.subscribe(log_file_writer)
+    Events.set_context(process: 'daemon_supervisor', role: 'daemon_supervisor', pid: Process.pid)
+
+    Events.notify('daemon.supervisor.migrations.start', {})
+    version = DatabaseMigrations.migrate!
+    Events.notify('daemon.supervisor.migrations.complete', {
+      version: version,
+    })
+
+    @running = true
+    spawn_children
+
+    Events.notify('daemon.supervisor.start', {
+      children: @children,
+      poll_interval: @poll_interval,
+    })
+
+    trap('INT') { request_stop('INT') }
+    trap('TERM') { request_stop('TERM') }
+    trap('HUP') { request_reload }
+
+    shutdown_sent = false
+
+    loop do
+      break if @children.empty?
+
+      if @running && @reload_requested
+        reload_daemon_worker
+        @reload_requested = false
+      end
+
+      if !@running && !shutdown_sent
+        force_shutdown_children
+        shutdown_sent = true
+      end
+
+      waited = Process.wait2(-1, Process::WNOHANG)
+      if waited
+        pid, status = waited
+        reap_child(pid, status)
+        request_stop('child_exit') if @running
+      else
+        sleep 0.1
+      end
+    end
+
+    Events.notify('daemon.supervisor.stop', {})
+  end
+
+  private
+
+  def spawn_children
+    @children[:daemon_worker] = spawn_daemon_worker
+    @children[:session_html_server] = spawn_session_html_server
+
+    WriterRegistry.roles.each do |role|
+      @children[role.to_sym] = spawn_writer(role)
+    end
+  end
+
+  def spawn_daemon_worker
+    command = [ruby_executable, run_agent_path, *provider_args, '--daemon', '--poll-interval', @poll_interval.to_s]
+    Process.spawn({ 'GRUV_ROLE' => 'daemon_worker', 'GRUV_SUPERVISOR_PID' => Process.pid.to_s }, *command)
+  end
+
+  def spawn_writer(role)
+    command = [ruby_executable, gruv_path]
+    Process.spawn({ 'GRUV_ROLE' => role }, *command)
+  end
+
+  def spawn_session_html_server
+    command = [ruby_executable, serve_session_html_path]
+    Process.spawn({ 'GRUV_ROLE' => 'session_html_server' }, *command)
+  end
+
+  def provider_args
+    args = []
+    args += ['--provider', @provider] if @provider
+    args += ['--model', @model] if @model
+    args
+  end
+
+  def request_stop(signal)
+    if @running
+      @running = false
+      Events.notify('daemon.supervisor.stop.requested', { signal: signal })
+      return
+    end
+
+    return unless %w[INT TERM].include?(signal)
+
+    Events.notify('daemon.supervisor.stop.force_requested', { signal: signal })
+    force_shutdown_children
+  end
+
+  def request_reload
+    return unless @running
+
+    @reload_requested = true
+    Events.notify('daemon.supervisor.reload.requested', {})
+  end
+
+  def reload_daemon_worker
+    old_children = @children.dup
+
+    Events.notify('daemon.supervisor.reload.all_children.stopping', {
+      roles: old_children.keys,
+      pids: old_children.values,
+    })
+
+    old_children.each_value do |pid|
+      begin
+        Process.kill('TERM', pid)
+      rescue Errno::ESRCH
+        nil
+      end
+    end
+
+    deadline = Time.now + 300
+    loop do
+      break if old_children.values.none? { |pid| @children.value?(pid) }
+      break if Time.now >= deadline
+
+      sleep 0.1
+      waited = Process.wait2(-1, Process::WNOHANG)
+      next unless waited
+
+      pid, status = waited
+      reap_child(pid, status)
+    end
+
+    old_children.each_value do |pid|
+      next unless @children.value?(pid)
+
+      begin
+        Process.kill('KILL', pid)
+      rescue Errno::ESRCH
+        nil
+      end
+
+      begin
+        reaped_pid, status = Process.wait2(pid)
+        reap_child(reaped_pid, status)
+      rescue Errno::ECHILD
+        nil
+      end
+    end
+
+    spawn_children
+
+    Events.notify('daemon.supervisor.reload.all_children.started', {
+      children: @children,
+    })
+  end
+
+  def shutdown_children(signal)
+    @children.each_value do |pid|
+      begin
+        Process.kill(signal, pid)
+      rescue Errno::ESRCH
+        nil
+      end
+    end
+  end
+
+  def force_shutdown_children
+    shutdown_children('KILL')
+  end
+
+  def reap_child(pid, status)
+    role = @children.key(pid)
+    return unless role
+
+    Events.notify('daemon.supervisor.child.exit', {
+      role: role,
+      pid: pid,
+      exitstatus: status.exitstatus,
+      signaled: status.signaled?,
+      termsig: status.termsig,
+    })
+
+    @children.delete(role)
+  end
+
+  def ruby_executable
+    RbConfig.ruby
+  end
+
+  def run_agent_path
+    File.expand_path('../run_agent.rb', __dir__)
+  end
+
+  def gruv_path
+    File.expand_path('../gruv', __dir__)
+  end
+
+  def serve_session_html_path
+    File.expand_path('../scripts/serve_session_html.rb', __dir__)
+  end
+end
