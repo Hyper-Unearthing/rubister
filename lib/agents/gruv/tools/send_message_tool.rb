@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative '../../writer_registry'
-require_relative '../../errors'
+require_relative '../../../writer_registry'
+require_relative '../../../errors'
 
 class SendMessageTool < LlmGateway::Tool
   name 'SendMessage'

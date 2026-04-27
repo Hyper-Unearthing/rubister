@@ -5,10 +5,10 @@ require 'rbconfig'
 require 'securerandom'
 require 'time'
 require 'fileutils'
-require_relative '../../db/database_config'
-require_relative '../../db/clone_task'
-require_relative '../../../config/instance_file_scope'
-require_relative '../../../config/runtime_config'
+require_relative '../../../db/database_config'
+require_relative '../../../db/clone_task'
+require_relative '../../../../config/instance_file_scope'
+require_relative '../../../../config/runtime_config'
 
 class SpawnCloneTaskTool < LlmGateway::Tool
   name 'spawn_clone_task'
@@ -60,14 +60,14 @@ class SpawnCloneTaskTool < LlmGateway::Tool
       'bundle',
       'exec',
       RbConfig.ruby,
-      File.expand_path('../../scripts/clone_task_worker.rb', __dir__),
+      File.expand_path('../../../../scripts/clone_task_worker.rb', __dir__),
       '--task-id',
       "#{task.id}"
     ]
 
     command += ['--provider', resolved_provider, '--model', resolved_model]
 
-    pid = Process.spawn(*command, chdir: File.expand_path('../..', __dir__))
+    pid = Process.spawn(*command, chdir: File.expand_path('../../../..', __dir__))
     Process.detach(pid)
 
     task.update!({

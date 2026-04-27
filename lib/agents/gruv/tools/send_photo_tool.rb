@@ -1,22 +1,22 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative '../../writer_registry'
-require_relative '../../errors'
+require_relative '../../../writer_registry'
+require_relative '../../../errors'
 
-class SendVoiceTool < LlmGateway::Tool
-  name 'SendVoice'
-  description 'Send a voice message to Telegram or Discord using a unified interface.'
+class SendPhotoTool < LlmGateway::Tool
+  name 'SendPhoto'
+  description 'Send a photo to Telegram or Discord using a unified interface.'
   input_schema({
     type: 'object',
     properties: {
       platform: { type: 'string', enum: %w[telegram discord], description: 'Platform to send to' },
       channel_id: { type: 'string', description: 'Telegram chat_id or Discord channel_id' },
-      voice: { type: 'string', description: 'Local file path or base64:...' },
-      caption: { type: 'string', description: 'Optional caption/message content' },
+      photo: { type: 'string', description: 'Local file path or base64:...' },
+      caption: { type: 'string', description: 'Photo caption/message content' },
       reply_to_message_id: { type: 'string', description: 'Reply target message id (Telegram/Discord mapping handled automatically)' }
     },
-    required: ['platform', 'channel_id', 'voice']
+    required: ['platform', 'channel_id', 'photo']
   })
 
   def execute(input)
@@ -25,10 +25,11 @@ class SendVoiceTool < LlmGateway::Tool
     sender = WriterRegistry.for_platform(platform)
     return JSON.generate({ ok: false, error: "Platform '#{platform}' not configured" }) unless sender
 
-    result = sender.send_voice(
+    result = sender.send_photo(
       channel_id: input[:channel_id],
-      voice_input: input[:voice],
+      photo_input: input[:photo],
       caption: input[:caption],
+      parse_mode: input[:parse_mode],
       reply_to_message_id: input[:reply_to_message_id]
     )
 

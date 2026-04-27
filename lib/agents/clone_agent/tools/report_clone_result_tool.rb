@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative '../../db/database_config'
-require_relative '../../db/clone_task'
-require_relative '../../db/inbox'
+require_relative '../../../db/database_config'
+require_relative '../../../db/clone_task'
+require_relative '../../../db/inbox'
 
 class ReportCloneResultTool < LlmGateway::Tool
   name 'report_clone_result'

@@ -1,25 +1,22 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative '../../writer_registry'
-require_relative '../../errors'
+require_relative '../../../writer_registry'
+require_relative '../../../errors'
 
-class SendDocumentTool < LlmGateway::Tool
-  def self.platform_tool? = true
-
-  name 'SendDocument'
-  description 'Send a document to Telegram or Discord using a unified interface.'
+class SendVoiceTool < LlmGateway::Tool
+  name 'SendVoice'
+  description 'Send a voice message to Telegram or Discord using a unified interface.'
   input_schema({
     type: 'object',
     properties: {
       platform: { type: 'string', enum: %w[telegram discord], description: 'Platform to send to' },
       channel_id: { type: 'string', description: 'Telegram chat_id or Discord channel_id' },
-      document: { type: 'string', description: 'Local file path or base64:...' },
-      caption: { type: 'string', description: 'Document caption/message content' },
-      filename: { type: 'string', description: 'Override filename (optional, auto-detected from path)' },
+      voice: { type: 'string', description: 'Local file path or base64:...' },
+      caption: { type: 'string', description: 'Optional caption/message content' },
       reply_to_message_id: { type: 'string', description: 'Reply target message id (Telegram/Discord mapping handled automatically)' }
     },
-    required: ['platform', 'channel_id', 'document']
+    required: ['platform', 'channel_id', 'voice']
   })
 
   def execute(input)
@@ -28,12 +25,10 @@ class SendDocumentTool < LlmGateway::Tool
     sender = WriterRegistry.for_platform(platform)
     return JSON.generate({ ok: false, error: "Platform '#{platform}' not configured" }) unless sender
 
-    result = sender.send_document(
+    result = sender.send_voice(
       channel_id: input[:channel_id],
-      document_input: input[:document],
+      voice_input: input[:voice],
       caption: input[:caption],
-      filename: input[:filename],
-      parse_mode: input[:parse_mode],
       reply_to_message_id: input[:reply_to_message_id]
     )
 

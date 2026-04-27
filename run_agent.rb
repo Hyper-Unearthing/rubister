@@ -3,7 +3,7 @@
 require 'optparse'
 require 'llm_gateway'
 require_relative 'lib/agents/agent'
-require_relative 'lib/agents/coding_agent'
+require_relative 'lib/agents/coding_agent/agent'
 require_relative 'lib/logging/events'
 require_relative 'config/instance_file_scope'
 require_relative 'modes/interactive'

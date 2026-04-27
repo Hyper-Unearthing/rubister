@@ -4,7 +4,7 @@ require_relative '../config/instance_file_scope'
 require_relative '../lib/format_stream'
 require_relative '../lib/agents/agent'
 require_relative '../agents/sessions/agent_session'
-require_relative '../lib/agents/coding_agent'
+require_relative '../lib/agents/coding_agent/agent'
 require_relative '../agents/sessions/file_session_manager'
 
 class MessageMode
