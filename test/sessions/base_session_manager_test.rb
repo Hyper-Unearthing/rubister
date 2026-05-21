@@ -1,5 +1,5 @@
 require 'minitest/autorun'
-require_relative '../../lib/sessions/base_session_manager'
+require_relative '../../agents/sessions/base_session_manager'
 require_relative '../support/session_event_simulation_helper'
 
 class BaseSessionManagerTest < Minitest::Test
@@ -31,18 +31,21 @@ class BaseSessionManagerTest < Minitest::Test
     expected_active_messages = [
       {
         role: 'user',
-        content: [{ type: 'text', text: 'find the bug' }]
+        content: [{ type: 'text', text: 'find the bug' }],
+        usage: nil
       },
       {
         role: 'assistant',
         content: [
           { type: 'text', text: 'I will inspect the file.' },
           { type: 'tool_use', id: 'toolu_pre_1', name: 'read', input: { path: 'lib/foo.rb' } }
-        ]
+        ],
+        usage: nil
       },
       {
         role: 'user',
-        content: [{ type: 'tool_result', tool_use_id: 'toolu_pre_1', content: 'file contents' }]
+        content: [{ type: 'tool_result', tool_use_id: 'toolu_pre_1', content: 'file contents' }],
+        usage: nil
       }
     ]
 
@@ -81,18 +84,21 @@ class BaseSessionManagerTest < Minitest::Test
     expected_active_messages = [
       {
         role: 'user',
-        content: [{ type: 'text', text: 'check stream behavior' }]
+        content: [{ type: 'text', text: 'check stream behavior' }],
+        usage: nil
       },
       {
         role: 'assistant',
         content: [
           { type: 'text', text: 'I will inspect the file.' },
           { type: 'tool_use', id: 'toolu_post_1', name: 'bash', input: { command: 'rg StreamOutputMapper lib' } }
-        ]
+        ],
+        usage: nil
       },
       {
         role: 'user',
-        content: [{ type: 'tool_result', tool_use_id: 'toolu_post_1', content: 'lib/llm_gateway_providers/openai_oauth/stream_output_mapper.rb' }]
+        content: [{ type: 'tool_result', tool_use_id: 'toolu_post_1', content: 'lib/llm_gateway_providers/openai_oauth/stream_output_mapper.rb' }],
+        usage: nil
       }
     ]
 
