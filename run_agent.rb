@@ -25,10 +25,11 @@ class AgentRunner
   include ProviderAuthHelper
 
   SUPPORTED_PROVIDERS = %w[
-    anthropic_apikey_messages
-    openai_apikey_completions
-    openai_apikey_responses
-    openai_oauth_codex
+    anthropic_messages
+    openai_completions
+    openai_responses
+    openai_codex
+    groq_completions
   ].freeze
   INBOX_DB_PATH = InstanceFileScope.path('gruv.sqlite3')
 
@@ -111,12 +112,12 @@ class AgentRunner
       exit 1
     end
 
+    model = resolve_model(provider)
     agent_config = {
-      'provider' => provider,
-      'model_key' => resolve_model(provider)
+      'provider' => provider
     }
 
-    RuntimeConfig.set(provider_name: provider, model_key: agent_config['model_key'])
+    RuntimeConfig.set(provider_name: provider, model: model)
 
     begin
       apply_provider_auth!(provider, agent_config)

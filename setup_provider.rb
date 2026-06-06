@@ -38,7 +38,7 @@ def run_oauth_flow(provider)
 
     flow.exchange_code(auth_code, result[:code_verifier])
   when 'openai'
-    LlmGateway::Clients::OpenAiCodex::OAuthFlow.new.login
+    LlmGateway::Clients::OpenAI::OAuthFlow.new.login
   end
 end
 

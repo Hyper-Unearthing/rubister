@@ -1,7 +1,6 @@
 require 'securerandom'
 require 'time'
 require_relative 'concerns/basic_compaction'
-require_relative 'usage_normalizer'
 
 class BaseSessionManager
   include BasicCompaction
@@ -60,8 +59,10 @@ class BaseSessionManager
   end
 
   def total_tokens
-    entry = message_events.reverse.find { |event| event.dig(:data, :usage, :total_tokens) }
-    entry&.dig(:data, :usage, :total_tokens) || 0
+    entry = message_events.reverse.find { |event| usage_total(message_usage(event[:data])) }
+    return 0 unless entry
+
+    usage_total(message_usage(entry[:data])) || 0
   end
 
   private
@@ -79,7 +80,30 @@ class BaseSessionManager
   end
 
   def message_usage(message)
-    UsageNormalizer.normalize(message[:usage])
+    usage = message[:usage] || message['usage']
+    return nil unless usage
+
+    usage = usage.transform_keys(&:to_sym)
+    return usage if usage.key?(:total)
+
+    input = usage[:input] || usage[:input_tokens] || usage[:prompt_tokens] || 0
+    cache_read = usage[:cache_read] || usage[:cache_read_input_tokens] || 0
+    cache_write = usage[:cache_write] || usage[:cache_creation_input_tokens] || 0
+    output = usage[:output] || usage[:output_tokens] || usage[:completion_tokens] || 0
+    total = usage[:total] || usage[:total_tokens] || (input + cache_read + cache_write + output)
+
+    usage.merge(
+      input: input,
+      cache_read: cache_read,
+      cache_write: cache_write,
+      output: output,
+      total: total,
+      total_tokens: total
+    )
+  end
+
+  def usage_total(usage)
+    usage && (usage[:total] || usage[:total_tokens])
   end
 
   def persist_entry(entry)

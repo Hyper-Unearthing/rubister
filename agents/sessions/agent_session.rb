@@ -31,7 +31,7 @@ class AgentSession
   end
 
   def compact
-    session_manager.compaction(@agent.client)
+    session_manager.compaction(@agent.client, model: @agent.model || RuntimeConfig.model)
     @agent.transcript = model_input_messages
   end
 
@@ -48,7 +48,7 @@ class AgentSession
       assistant_message = event.message.to_h
       @session_manager.push_message(assistant_message)
     when Agent::Event::TurnEnd
-      tool_result_content = event.tool_results.flat_map { |tool_result| tool_result.to_h[:content] }
+      tool_result_content = event.tool_results.map(&:to_h)
       if tool_result_content.any?
         tool_result_message = {
           role: 'user',

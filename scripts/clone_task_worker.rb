@@ -82,11 +82,10 @@ class CloneTaskWorker
     provider_name = @options[:provider]
     model = @options[:model]
 
-    RuntimeConfig.set(provider_name: provider_name, model_key: model)
+    RuntimeConfig.set(provider_name: provider_name, model: model)
 
     config = {
-      'provider' => provider_name,
-      'model_key' => resolve_model(model)
+      'provider' => provider_name
     }
 
     apply_provider_auth!(provider_name, config)

@@ -18,9 +18,8 @@ class CompactionPrompt < LlmGateway::Prompt
     - Keep the summary concise and structured by topic.
   PROMPT
 
-  def initialize(client, messages, last_summary: nil)
-    super(client)
-    @client = client
+  def initialize(provider:, messages:, model: nil, last_summary: nil)
+    super(provider: provider, model: model)
     @messages = messages
     @last_summary = last_summary
   end
@@ -59,7 +58,7 @@ class CompactionPrompt < LlmGateway::Prompt
   end
 
   def post(&block)
-    @client.stream(
+    stream(
       prompt,
       tools: [],
       system: system_prompt,

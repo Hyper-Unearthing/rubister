@@ -3,28 +3,16 @@ require 'debug'
 
 class Agent < LlmGateway::Prompt
   attr_reader :client
-  attr_accessor :transcript, :cache_key, :cache_retention
+  attr_accessor :transcript
 
-  def initialize(client, transcript: [])
-    super(client.client.model_key)
+  def initialize(client, model: RuntimeConfig.model)
+    super(provider: client, model: model, reasoning: 'high')
     @client = client
-    @transcript = transcript
+    @transcript = []
   end
 
   def prompt
     transcript
-  end
-
-  def self.tools
-    self::TOOLS
-  end
-
-  def self.find_tool(name)
-    tools.find { |tool| tool.tool_name == name }
-  end
-
-  def tools
-    self.class.tools.map(&:definition)
   end
 
   def run(user_input, &block)
@@ -39,16 +27,18 @@ class Agent < LlmGateway::Prompt
     send_and_process(messages:, &block)
   end
 
-  def post(&block)
-    stream_options = {
+  def stream_options
+    {
       tools: tools,
       system: system_prompt,
-      reasoning: 'high'
-    }
+      reasoning: reasoning,
+      model: model,
+      cache_key: cache_key,
+      cache_retention: cache_retention
+    }.compact
+  end
 
-    stream_options[:cache_key] = cache_key if cache_key
-    stream_options[:cache_retention] = cache_retention if cache_retention
-
+  def post(&block)
     @client.stream(
       prompt,
       **stream_options,
@@ -75,11 +65,18 @@ class Agent < LlmGateway::Prompt
     tool_results = result.content.select { |message| message.type == 'tool_use' }.map do |message|
       parameters = message.to_h
       emit(Event::ToolExecutionStart.new(parameters: parameters), &block)
-      tool_result = execute_tool(message)
-      emit(Event::ToolExecutionEnd.new(parameters: parameters, result: tool_result.to_h), &block)
-      transcript << tool_result.to_h
-      messages.concat([tool_result])
+      tool_result = execute_tool_request(message)
+      emit(Event::ToolExecutionEnd.new(parameters: parameters, result: tool_result), &block)
       tool_result
+    end
+
+    if tool_results.any?
+      tool_result_message = {
+        role: 'user',
+        content: tool_results.map(&:to_h)
+      }
+      transcript << tool_result_message
+      messages << tool_result_message
     end
 
     turn_end_event = Event::TurnEnd.new(message: assistant_message, tool_results: tool_results)
@@ -103,26 +100,8 @@ class Agent < LlmGateway::Prompt
     block.call(event)
   end
 
-  def execute_tool(tool_request)
-    tool_name = tool_request.name
-    tool_input = tool_request.input
-    tool_class = self.class.find_tool(tool_name)
-
-    result = begin
-      if tool_class
-        tool_class.new.execute(tool_input)
-      else
-        "Unknown tool: #{tool_name}"
-      end
-    rescue StandardError => e
-      "Error executing tool: #{e.message}"
-    end
-
-    Event::ToolCallResult.new(
-      type: 'tool_result',
-      tool_use_id: tool_request.id,
-      content: result
-    )
+  def execute_tool_request(tool_request)
+    find_and_execute_tool(tool_request)
   end
 end
 

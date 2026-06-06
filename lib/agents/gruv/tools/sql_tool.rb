@@ -1,6 +1,6 @@
 require 'json'
 require 'active_record'
-require_relative '../../tools/tool_utils'
+require 'llm_gateway/agents/tools/tool_utils'
 require_relative '../../../db/database_config'
 
 class SqlTool < LlmGateway::Tool

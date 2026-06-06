@@ -1,6 +1,11 @@
 module BasicCompaction
-  def compaction(adapter)
-    result = CompactionPrompt.new(adapter, active_messages, last_summary: last_compaction_entry&.dig(:data, :summary)).post
+  def compaction(adapter, model: nil)
+    result = CompactionPrompt.new(
+      provider: adapter,
+      model: model,
+      messages: active_messages,
+      last_summary: last_compaction_entry&.dig(:data, :summary)
+    ).post
     content_blocks, usage = extract_compaction_content_and_usage(result)
 
     text_parts = content_blocks.filter_map do |part|
