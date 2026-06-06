@@ -26,7 +26,7 @@ class Formatter
     when :turn_end
       tool_result_message = {
         role: 'user',
-        content: event[:tool_results].flat_map { |tool_result| tool_result[:content] }
+        content: event[:tool_results]
       }
       render_message_payload(tool_result_message)
     when :agent_end

@@ -11,19 +11,19 @@ cd gruv
 Using OpenAI OAuth Codex
 ```bash
 ruby setup_provider.rb openai
-./gruv -p openai_oauth_codex
+./gruv -p openai_codex -m gpt-5.4
 ```
 
 Using Anthropic provider (OAuth from auth file if present, otherwise API key env var)
 ```bash
 ruby setup_provider.rb anthropic
-./gruv -p anthropic_apikey_messages
+./gruv -p anthropic_messages -m claude-sonnet-4-20250514
 ```
 
 Using OpenAI API key providers
 ```bash
-OPENAI_API_KEY=... ./gruv -p openai_apikey_completions
-OPENAI_API_KEY=... ./gruv -p openai_apikey_responses
+OPENAI_API_KEY=... ./gruv -p openai_completions -m gpt-5.1
+OPENAI_API_KEY=... ./gruv -p openai_responses -m gpt-5.4
 ```
 
 `-p` maps directly to llm_gateway provider keys. Use `-m`/`--model` for model selection.
@@ -32,25 +32,25 @@ OAuth auth is read from `~/.config/gruv/auth.json`.
 
 Stream test provider/model combinations:
 ```bash
-# openai_apikey_completions_gpt_5_1
-OPENAI_API_KEY=... ./gruv -p openai_apikey_completions -m gpt-5.1
+# openai_completions_gpt_5_1
+OPENAI_API_KEY=... ./gruv -p openai_completions -m gpt-5.1
 
-# anthropic_apikey_messages_claude_sonnet_4
+# anthropic_messages_claude_sonnet_4
 # (uses anthropic OAuth token from auth.json if present, else ANTHROPIC_API_KEY)
-ANTHROPIC_API_KEY=... ./gruv -p anthropic_apikey_messages -m claude-sonnet-4-20250514
+ANTHROPIC_API_KEY=... ./gruv -p anthropic_messages -m claude-sonnet-4-20250514
 
-# openai_apikey_responses_gpt_5_4
-OPENAI_API_KEY=... ./gruv -p openai_apikey_responses -m gpt-5.4
+# openai_responses_gpt_5_4
+OPENAI_API_KEY=... ./gruv -p openai_responses -m gpt-5.4
 
-# openai_oauth_codex_gpt_5_4
+# openai_codex_gpt_5_4
 ruby setup_provider.rb openai
-./gruv -p openai_oauth_codex -m gpt-5.4
+./gruv -p openai_codex -m gpt-5.4
 ```
 Run the unified setup wizard (can be run multiple times safely):
 
 ```bash
 bundle exec ruby setup.rb
-./gruv -p openai_oauth_codex -m gpt-5.4
+./gruv -p openai_codex -m gpt-5.4
 ```
 
 The wizard lets you pick which things to configure:

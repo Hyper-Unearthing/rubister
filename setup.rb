@@ -202,7 +202,7 @@ def setup_openai(providers)
     true
   end
 
-  tokens = run_oauth ? LlmGateway::Clients::OpenAi::OAuthFlow.new.login : nil
+  tokens = run_oauth ? LlmGateway::Clients::OpenAI::OAuthFlow.new.login : nil
 
   entry = existing.dup
   entry['reasoning'] = reasoning

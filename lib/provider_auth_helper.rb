@@ -42,7 +42,7 @@ module ProviderAuthHelper
 
     case provider
     when 'anthropic'
-      token = LlmGateway::Clients::Claude.new.get_oauth_access_token(
+      token = LlmGateway::Clients::Anthropic.new.get_oauth_access_token(
         access_token: creds['access_token'],
         refresh_token: creds['refresh_token'],
         expires_at: creds['expires_at']
@@ -57,7 +57,7 @@ module ProviderAuthHelper
       persist_auth_credentials('anthropic', { 'access_token' => token }) if token != creds['access_token']
       token
     when 'openai'
-      token = LlmGateway::Clients::OpenAi.new.get_oauth_access_token(
+      token = LlmGateway::Clients::OpenAI.new.get_oauth_access_token(
         access_token: creds['access_token'],
         refresh_token: creds['refresh_token'],
         expires_at: creds['expires_at'],
@@ -79,7 +79,7 @@ module ProviderAuthHelper
 
   def apply_provider_auth!(provider_name, config)
     case provider_name
-    when 'anthropic_apikey_messages'
+    when 'anthropic_messages'
       if auth_credentials_available?('anthropic')
         config['api_key'] = oauth_access_token_for('anthropic')
       else
@@ -88,13 +88,18 @@ module ProviderAuthHelper
 
         config['api_key'] = api_key
       end
-    when 'openai_oauth_codex'
+    when 'openai_codex'
       creds = load_auth_credentials('openai')
       config['api_key'] = oauth_access_token_for('openai')
       config['account_id'] = creds['account_id'] if creds['account_id']
-    when 'openai_apikey_completions', 'openai_apikey_responses'
+    when 'openai_completions', 'openai_responses'
       api_key = ENV['OPENAI_API_KEY']
       raise 'OPENAI_API_KEY is required for OpenAI API key providers' unless api_key
+
+      config['api_key'] = api_key
+    when 'groq_completions'
+      api_key = ENV['GROQ_API_KEY']
+      raise 'GROQ_API_KEY is required for Groq API key provider' unless api_key
 
       config['api_key'] = api_key
     else

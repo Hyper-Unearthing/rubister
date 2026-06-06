@@ -194,11 +194,12 @@ class FileSessionManagerEventsTest < Minitest::Test
         assistant_message_class.new(
           id: 'msg_compact_fixture_1',
           model: 'test-model',
-          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+          usage: { input: 10, output: 5, total: 15 },
           role: 'assistant',
           stop_reason: 'stop',
           provider: 'test',
           api: 'responses',
+          timestamp: Time.now.to_i,
           content: [text_content_class.new(type: 'text', text: "# Topic\n- Compacted")]
         )
       end
@@ -207,7 +208,7 @@ class FileSessionManagerEventsTest < Minitest::Test
 
       assert_equal 'compaction', compaction_entry[:type]
       assert_equal "# Topic\n- Compacted", compaction_entry.dig(:data, :summary)
-      assert_equal({ input_tokens: 10, output_tokens: 5, total_tokens: 15 }, compaction_entry[:usage])
+      assert_equal({ input: 10, output: 5, total: 15 }, compaction_entry[:usage])
       assert_equal 9, manager.events.length
       assert_equal 'compaction', manager.events.last[:type]
     end
@@ -230,11 +231,12 @@ class FileSessionManagerEventsTest < Minitest::Test
     result = assistant_message_class.new(
       id: 'msg_compact_1',
       model: 'test-model',
-      usage: { input_tokens: 4, output_tokens: 2, total_tokens: 6 },
+      usage: { input: 4, output: 2, total: 6 },
       role: 'assistant',
       stop_reason: 'stop',
       provider: 'test',
       api: 'responses',
+      timestamp: Time.now.to_i,
       content: [text_content_class.new(type: 'text', text: "# Summary\n- Done")]
     )
 
@@ -250,7 +252,7 @@ class FileSessionManagerEventsTest < Minitest::Test
 
     assert_equal 'compaction', compaction_entry[:type]
     assert_equal "# Summary\n- Done", compaction_entry.dig(:data, :summary)
-    assert_equal({ input_tokens: 4, output_tokens: 2, total_tokens: 6 }, compaction_entry[:usage])
+    assert_equal({ input: 4, output: 2, total: 6 }, compaction_entry[:usage])
   end
 
 end
